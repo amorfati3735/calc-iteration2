@@ -10,15 +10,15 @@
 }
 
 :root {
-  --bg: #EFECE7;
-  --ink: #000000;
-  --grid: rgba(0, 0, 0, 0.05);
+  --bg: #EDEBF2;
+  --ink: #2B00D4;
+  --grid: rgba(43, 0, 212, 0.05);
 }
 
 .dark {
-  --bg: #151515;
-  --ink: #F5F2ED;
-  --grid: rgba(245, 242, 237, 0.05);
+  --bg: #0D0B1A;
+  --ink: #C4B5FD;
+  --grid: rgba(196, 181, 253, 0.05);
 }
 
 body {
@@ -39,6 +39,16 @@ body {
   background-image: 
     linear-gradient(var(--grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 20px 20px;
+  z-index: -1;
+}
+
+/* Dot grid variant */
+.dot-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, var(--grid) 1px, transparent 1px);
   background-size: 20px 20px;
   z-index: -1;
 }

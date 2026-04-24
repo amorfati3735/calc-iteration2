@@ -57,6 +57,9 @@ export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return (localStorage.getItem('calc_theme') as 'light' | 'dark') || 'light';
   });
+  const [gridStyle, setGridStyle] = useState<'lines' | 'dots'>(() => {
+    return (localStorage.getItem('calc_grid') as 'lines' | 'dots') || 'lines';
+  });
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({
     [new Date().toDateString()]: true,
   });
@@ -283,7 +286,7 @@ export default function App() {
 
   return (
     <div className={`min-h-screen px-4 pt-24 pb-40 max-w-lg mx-auto relative cursor-default select-none font-sans overflow-x-hidden ${theme}`}>
-      <div className="grid-overlay" />
+      <div className={gridStyle === 'dots' ? 'dot-grid' : 'grid-overlay'} />
 
       {/* Import prompt */}
       {needsImport && (
@@ -433,6 +436,8 @@ export default function App() {
         monthlyBudget={monthlyBudget}
         customTags={customTags}
         updatePreferences={updatePreferences}
+        gridStyle={gridStyle}
+        setGridStyle={(v: 'lines' | 'dots') => { setGridStyle(v); localStorage.setItem('calc_grid', v); }}
       />
     </div>
   );

@@ -7,9 +7,11 @@ interface SidebarConfigProps {
   monthlyBudget: number;
   customTags: string[];
   updatePreferences: (prefs: { monthlyBudget?: number; customTags?: string[] }) => void;
+  gridStyle: 'lines' | 'dots';
+  setGridStyle: (v: 'lines' | 'dots') => void;
 }
 
-export function SidebarConfig({ isOpen, onClose, monthlyBudget, customTags, updatePreferences }: SidebarConfigProps) {
+export function SidebarConfig({ isOpen, onClose, monthlyBudget, customTags, updatePreferences, gridStyle, setGridStyle }: SidebarConfigProps) {
   const [budgetInput, setBudgetInput] = useState(monthlyBudget.toString());
   const [newTag, setNewTag] = useState('');
 
@@ -68,6 +70,14 @@ export function SidebarConfig({ isOpen, onClose, monthlyBudget, customTags, upda
                     <button onClick={() => handleRemoveTag(t)} className="opacity-40 hover:opacity-100 text-[10px]">x</button>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="font-mono text-[10px] tracking-widest opacity-60">GRID</div>
+              <div className="flex border-2 border-ink overflow-hidden font-mono font-bold text-[10px] tracking-widest">
+                <button onClick={() => setGridStyle('lines')} className={`flex-1 py-2 transition-colors ${gridStyle === 'lines' ? 'bg-ink text-bg' : 'bg-transparent text-ink'}`}>LINES</button>
+                <button onClick={() => setGridStyle('dots')} className={`flex-1 py-2 transition-colors ${gridStyle === 'dots' ? 'bg-ink text-bg' : 'bg-transparent text-ink'}`}>DOTS</button>
               </div>
             </div>
           </motion.div>
