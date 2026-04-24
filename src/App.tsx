@@ -5,6 +5,8 @@ import { useFinanceData } from './hooks/useFinanceData';
 import { LoginScreen } from './components/LoginScreen';
 import { SpentTab } from './components/SpentTab';
 import { ChronicleTab } from './components/ChronicleTab';
+import { AnalyticsTab } from './components/AnalyticsTab';
+import { SidebarConfig } from './components/SidebarConfig';
 import { DebtTransaction, SpendEntry, Friend, SortType, Direction, AppState } from './types';
 
 const KAOMOJI = {
@@ -38,9 +40,13 @@ export default function App() {
     deleteDebt,
     settleDebt,
     updateSortType,
+    monthlyBudget,
+    customTags,
+    updatePreferences,
   } = useFinanceData(user?.uid ?? null);
 
-  const [activeTab, setActiveTab] = useState<'SPENT' | 'CHRONICLE'>('SPENT');
+  const [activeTab, setActiveTab] = useState<'SPENT' | 'CHRONICLE' | 'ANALYTICS'>('SPENT');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [viewState, setViewState] = useState<{ type: 'LIST' | 'DETAIL'; id?: string }>({ type: 'LIST' });
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingSpendId, setEditingSpendId] = useState<string | null>(null);
@@ -209,7 +215,7 @@ export default function App() {
     updateSortType(next);
   };
 
-  const TabButton = ({ label, active }: { label: 'SPENT' | 'CHRONICLE'; active: boolean }) => (
+  const TabButton = ({ label, active }: { label: 'SPENT' | 'CHRONICLE' | 'ANALYTICS'; active: boolean }) => (
     <button
       onClick={() => setActiveTab(label)}
       className={`flex-1 py-5 text-[10px] tracking-widest font-display font-semibold transition-all ${active ? 'underline underline-offset-8 scale-110' : 'opacity-40 hover:opacity-100'}`}
@@ -262,6 +268,12 @@ export default function App() {
 
       {/* Branding & Theme Toggle */}
       <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 flex gap-2">
+        <button
+          onClick={() => setIsSidebarOpen(true)}
+          className="backdrop-blur-md bg-ink/5 border border-ink/10 px-3 py-1 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform"
+        >
+          [ CFG ]
+        </button>
         <div className="backdrop-blur-md bg-ink/5 border border-ink/10 px-3 py-1 text-[10px] tracking-widest font-mono text-ink">
           CALC
         </div>
@@ -281,7 +293,12 @@ export default function App() {
           setExpandedDays={setExpandedDays}
           onEdit={(id) => { setEditingSpendId(id); setIsSheetOpen(true); }}
           onDelete={(id) => handleDeleteEntry(id, 'SPEND')}
+          monthlyBudget={monthlyBudget}
         />
+      )}
+
+      {activeTab === 'ANALYTICS' && (
+        <AnalyticsTab spendEntries={spendEntries} customTags={customTags} />
       )}
 
       {activeTab === 'CHRONICLE' && (
@@ -311,6 +328,7 @@ export default function App() {
       {/* Tabs */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-ink bg-bg flex z-40 max-w-lg mx-auto">
         <TabButton label="SPENT" active={activeTab === 'SPENT'} />
+        <TabButton label="ANALYTICS" active={activeTab === 'ANALYTICS'} />
         <TabButton label="CHRONICLE" active={activeTab === 'CHRONICLE'} />
       </div>
 
@@ -328,6 +346,7 @@ export default function App() {
                 <SpendEntryForm
                   initialData={editingSpendId ? spendEntries.find(e => e.id === editingSpendId) : undefined}
                   friends={friends}
+                  customTags={customTags}
                   onSubmit={handleAddSpend}
                   onClose={closeSheet}
                 />
@@ -365,11 +384,19 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <SidebarConfig
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        monthlyBudget={monthlyBudget}
+        customTags={customTags}
+        updatePreferences={updatePreferences}
+      />
     </div>
   );
 }
 
-function SpendEntryForm({ initialData, friends, onSubmit, onClose }: { initialData?: SpendEntry; friends: Friend[]; onSubmit: (t: Omit<SpendEntry, 'id'>, friendName?: string) => void; onClose: () => void }) {
+function SpendEntryForm({ initialData, friends, customTags, onSubmit, onClose }: { initialData?: SpendEntry; friends: Friend[]; customTags: string[]; onSubmit: (t: Omit<SpendEntry, 'id'>, friendName?: string) => void; onClose: () => void }) {
   const [amount, setAmount] = useState(initialData?.amount?.toString() || '');
   const [note, setNote] = useState(initialData?.note || '');
   const [tag, setTag] = useState(initialData?.tag || '');
@@ -409,12 +436,12 @@ function SpendEntryForm({ initialData, friends, onSubmit, onClose }: { initialDa
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-1">
               <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">TAG</div>
-              <input value={tag} onChange={e => setTag(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-3 text-sm font-mono font-bold" list="tags-list" placeholder="[NONE]" />
-              <datalist id="tags-list">
-                <option value="eat-out" />
-                <option value="snacks" />
-                <option value="misc" />
-              </datalist>
+              <input value={tag} onChange={e => setTag(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-3 text-sm font-mono font-bold mb-2" placeholder="[NONE]" />
+              <div className="flex flex-wrap gap-2">
+                {customTags.map(t => (
+                  <button key={t} onClick={() => setTag(t)} className={`px-2 py-1 border border-ink text-xs font-mono transition-colors ${tag === t ? 'bg-ink text-bg' : 'bg-transparent text-ink'}`}>[{t}]</button>
+                ))}
+              </div>
             </div>
             <div className="space-y-1">
               <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">DATE</div>
@@ -424,8 +451,12 @@ function SpendEntryForm({ initialData, friends, onSubmit, onClose }: { initialDa
           {!initialData && (
             <div className="space-y-1">
               <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">FRIEND (OPTIONAL)</div>
-              <input value={friendName} onChange={e => setFriendName(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-3 text-sm font-mono font-bold" list="friends-list" placeholder="Leave empty if none" />
-              <datalist id="friends-list">{friends.map(f => <option key={f.name} value={f.name} />)}</datalist>
+              <input value={friendName} onChange={e => setFriendName(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-3 text-sm font-mono font-bold mb-2" placeholder="" />
+              <div className="flex flex-wrap gap-2">
+                {friends.slice(0, 3).map(f => (
+                  <button key={f.name} onClick={() => setFriendName(f.name)} className={`px-2 py-1 border border-ink text-xs font-mono transition-colors ${friendName === f.name ? 'bg-ink text-bg' : 'bg-transparent text-ink'}`}>[{f.name}]</button>
+                ))}
+              </div>
             </div>
           )}
         </div>

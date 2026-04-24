@@ -33,4 +33,8 @@ export interface AppState {
   spendEntries: SpendEntry[];
   friends: Friend[];
   sortType: SortType;
+  preferences?: {
+    monthlyBudget?: number;
+    customTags?: string[];
+  };
 }

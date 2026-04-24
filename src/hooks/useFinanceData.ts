@@ -11,6 +11,8 @@ export function useFinanceData(uid: string | null) {
   const [debtTransactions, setDebtTransactions] = useState<DebtTransaction[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [sortType, setSortType] = useState<SortType>('NAME');
+  const [monthlyBudget, setMonthlyBudget] = useState<number>(0);
+  const [customTags, setCustomTags] = useState<string[]>(['eat-out', 'snacks', 'misc']);
   const [needsImport, setNeedsImport] = useState(false);
   const initialLoadDone = useRef(false);
 
@@ -39,6 +41,8 @@ export function useFinanceData(uid: string | null) {
         setDebtTransactions(debts);
         setFriends(fr);
         setSortType(sort);
+        setMonthlyBudget(data.preferences?.monthlyBudget || 0);
+        setCustomTags(data.preferences?.customTags || ['eat-out', 'snacks', 'misc']);
         setNeedsImport(false);
       } else {
         const local = localStorage.getItem(STORAGE_KEY);
@@ -139,6 +143,11 @@ export function useFinanceData(uid: string | null) {
     await set(ref(db, `users/${uid}/preferences/sortType`), sort);
   }, [uid]);
 
+  const updatePreferences = useCallback(async (prefs: { monthlyBudget?: number; customTags?: string[] }) => {
+    if (!uid) return;
+    await update(ref(db, `users/${uid}/preferences`), prefs);
+  }, [uid]);
+
   return {
     dataLoaded,
     spendEntries,
@@ -155,5 +164,8 @@ export function useFinanceData(uid: string | null) {
     deleteDebt,
     settleDebt,
     updateSortType,
+    monthlyBudget,
+    customTags,
+    updatePreferences,
   };
 }
