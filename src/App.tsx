@@ -1,0 +1,494 @@
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from './hooks/useAuth';
+import { useFinanceData } from './hooks/useFinanceData';
+import { LoginScreen } from './components/LoginScreen';
+import { SpentTab } from './components/SpentTab';
+import { ChronicleTab } from './components/ChronicleTab';
+import { DebtTransaction, SpendEntry, Friend, SortType, Direction, AppState } from './types';
+
+const KAOMOJI = {
+  LOAD: '(=^･ω･^=)',
+  OWES_LOT: '(╬ಠ益ಠ)',
+  YOU_OWE_LOT: '(´；ω；`)',
+  NET_ZERO: '(￣▽￣)ノ',
+  CONFIRM_1: '( •_•)>⌐■-■',
+  CONFIRM_2: '(⌐■_■)',
+  SETTLE: '(ᵔᴥᵔ)',
+  EMPTY: '(´• ω •`)ノ',
+  ERROR: '(¬_¬)',
+  DELETE: '(╯°□°）╯︵ ┻━┻',
+};
+
+export default function App() {
+  const { user, loading: authLoading, login, error: authError } = useAuth();
+  const {
+    dataLoaded,
+    spendEntries,
+    debtTransactions,
+    friends,
+    sortType,
+    needsImport,
+    importLocalData,
+    addSpend,
+    updateSpend,
+    deleteSpend,
+    addDebt,
+    updateDebt,
+    deleteDebt,
+    settleDebt,
+    updateSortType,
+  } = useFinanceData(user?.uid ?? null);
+
+  const [activeTab, setActiveTab] = useState<'SPENT' | 'CHRONICLE'>('SPENT');
+  const [viewState, setViewState] = useState<{ type: 'LIST' | 'DETAIL'; id?: string }>({ type: 'LIST' });
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [editingSpendId, setEditingSpendId] = useState<string | null>(null);
+  const [editingDebtId, setEditingDebtId] = useState<string | null>(null);
+  const [fleetingKaomoji, setFleetingKaomoji] = useState<string | null>(null);
+  const [undoStack, setUndoStack] = useState<AppState[]>([]);
+  const [showUndoToast, setShowUndoToast] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('calc_theme') as 'light' | 'dark') || 'light';
+  });
+  const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({
+    [new Date().toDateString()]: true,
+  });
+
+  // Show load kaomoji when data first loads
+  const hasShownLoad = useRef(false);
+  useEffect(() => {
+    if (dataLoaded && !hasShownLoad.current) {
+      hasShownLoad.current = true;
+      setFleetingKaomoji(KAOMOJI.LOAD);
+      setTimeout(() => setFleetingKaomoji(null), 1000);
+    }
+  }, [dataLoaded]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('calc_theme', theme);
+  }, [theme]);
+
+  // Calculations
+  const monthTotal = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    return spendEntries
+      .filter(e => {
+        const d = new Date(e.date);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      })
+      .reduce((sum, e) => e.type === 'SPENT' ? sum + e.amount : sum - e.amount, 0);
+  }, [spendEntries]);
+
+  const spendByDay = useMemo(() => {
+    const groups: Record<string, SpendEntry[]> = {};
+    spendEntries.forEach(e => {
+      const day = new Date(e.date).toDateString();
+      if (!groups[day]) groups[day] = [];
+      groups[day].push(e);
+    });
+    return Object.entries(groups).sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime());
+  }, [spendEntries]);
+
+  const getFriendBalance = (name: string) => {
+    return debtTransactions
+      .filter(t => t.friendName === name && !t.settled)
+      .reduce((sum, t) => t.direction === 'LENT' ? sum + t.amountValue : sum - t.amountValue, 0);
+  };
+
+  const sortedFriends = useMemo(() => {
+    const list = [...friends];
+    if (sortType === 'NAME') list.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sortType === 'AMOUNT') list.sort((a, b) => Math.abs(getFriendBalance(b.name)) - Math.abs(getFriendBalance(a.name)));
+    else if (sortType === 'RECENT') list.sort((a, b) => b.lastActive - a.lastActive);
+    return list;
+  }, [friends, debtTransactions, sortType]);
+
+  // Undo system (local in-memory, writes back to Firebase on undo)
+  const pushToUndo = () => {
+    const currentState: AppState = { debtTransactions, spendEntries, friends, sortType };
+    setUndoStack(prev => [currentState, ...prev].slice(0, 20));
+    setShowUndoToast(true);
+    setTimeout(() => setShowUndoToast(false), 4000);
+  };
+
+  const handleUndo = async () => {
+    if (undoStack.length === 0 || !user) return;
+    const [lastState, ...rest] = undoStack;
+    const { ref, set } = await import('firebase/database');
+    const { db } = await import('./lib/firebase');
+    const userRef = ref(db, `users/${user.uid}`);
+    const firebaseData: Record<string, any> = { preferences: { sortType: lastState.sortType } };
+
+    const entries: Record<string, SpendEntry> = {};
+    lastState.spendEntries.forEach(e => { entries[e.id] = e; });
+    firebaseData.spendEntries = entries;
+
+    const txs: Record<string, DebtTransaction> = {};
+    lastState.debtTransactions.forEach(t => { txs[t.id] = t; });
+    firebaseData.debtTransactions = txs;
+
+    const fr: Record<string, Friend> = {};
+    lastState.friends.forEach(f => { fr[f.name.replace(/[.#$/\[\]]/g, '_')] = f; });
+    firebaseData.friends = fr;
+
+    await set(userRef, firebaseData);
+    setUndoStack(rest);
+    setShowUndoToast(false);
+    triggerFleeting('( ˘▽˘)っ Undo');
+  };
+
+  const triggerFleeting = (kaomoji: string, duration = 800) => {
+    setFleetingKaomoji(kaomoji);
+    setTimeout(() => setFleetingKaomoji(null), duration);
+  };
+
+  const handleAddSpend = async (entry: Omit<SpendEntry, 'id'>, friendName?: string) => {
+    pushToUndo();
+    if (editingSpendId) {
+      await updateSpend(editingSpendId, entry);
+    } else {
+      await addSpend(entry);
+    }
+
+    if (friendName && friendName.trim() && !editingSpendId) {
+      await addDebt({
+        friendName: friendName.trim(),
+        direction: 'LENT',
+        amountRaw: entry.amount.toString(),
+        amountValue: entry.amount,
+        note: entry.note || (entry.tag ? `Spent on ${entry.tag}` : 'Added from Spent')
+      });
+    }
+
+    closeSheet();
+    triggerFleeting(KAOMOJI.CONFIRM_1, 400);
+    setTimeout(() => setFleetingKaomoji(KAOMOJI.CONFIRM_2), 400);
+    setTimeout(() => setFleetingKaomoji(null), 800);
+  };
+
+  const handleAddDebt = async (t: Omit<DebtTransaction, 'id' | 'date' | 'settled'>) => {
+    pushToUndo();
+    if (editingDebtId) {
+      await updateDebt(editingDebtId, t);
+    } else {
+      await addDebt(t);
+    }
+    closeSheet();
+    triggerFleeting(KAOMOJI.CONFIRM_1, 400);
+    setTimeout(() => setFleetingKaomoji(KAOMOJI.CONFIRM_2), 400);
+    setTimeout(() => setFleetingKaomoji(null), 800);
+  };
+
+  const closeSheet = () => {
+    setIsSheetOpen(false);
+    setEditingSpendId(null);
+    setEditingDebtId(null);
+  };
+
+  const handleSettle = async (id: string) => {
+    pushToUndo();
+    await settleDebt(id);
+    triggerFleeting(KAOMOJI.SETTLE, 1000);
+  };
+
+  const handleDeleteEntry = async (id: string, type: 'SPEND' | 'DEBT') => {
+    if (confirm(`DELETE? ${KAOMOJI.DELETE}`)) {
+      pushToUndo();
+      if (type === 'SPEND') await deleteSpend(id);
+      else await deleteDebt(id);
+    }
+  };
+
+  const handleSortCycle = () => {
+    const flow: SortType[] = ['NAME', 'AMOUNT', 'RECENT'];
+    const next = flow[(flow.indexOf(sortType) + 1) % flow.length];
+    updateSortType(next);
+  };
+
+  const TabButton = ({ label, active }: { label: 'SPENT' | 'CHRONICLE'; active: boolean }) => (
+    <button
+      onClick={() => setActiveTab(label)}
+      className={`flex-1 py-5 text-[10px] tracking-widest font-display font-semibold transition-all ${active ? 'underline underline-offset-8 scale-110' : 'opacity-40 hover:opacity-100'}`}
+    >
+      {label}
+    </button>
+  );
+
+  // Auth loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center font-mono text-sm opacity-40">
+        <div className="grid-overlay" />
+        loading...
+      </div>
+    );
+  }
+
+  // Not logged in
+  if (!user) {
+    return <LoginScreen onLogin={login} error={authError} />;
+  }
+
+  // Data loading
+  if (!dataLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center font-mono">
+        <div className="grid-overlay" />
+        <div className="text-2xl">{KAOMOJI.LOAD}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`min-h-screen px-4 pt-12 pb-40 max-w-lg mx-auto relative cursor-default select-none font-sans overflow-x-hidden ${theme}`}>
+      <div className="grid-overlay" />
+
+      {/* Import prompt */}
+      {needsImport && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-ink text-bg px-4 py-3 flex items-center gap-3 max-w-sm"
+        >
+          <span className="text-xs font-mono">Found local data. Import?</span>
+          <button onClick={importLocalData} className="bg-bg text-ink px-3 py-1 text-[10px] font-mono font-bold">YES</button>
+          <button onClick={() => {}} className="text-[10px] font-mono opacity-60">NO</button>
+        </motion.div>
+      )}
+
+      {/* Branding & Theme Toggle */}
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 flex gap-2">
+        <div className="backdrop-blur-md bg-ink/5 border border-ink/10 px-3 py-1 text-[10px] tracking-widest font-mono text-ink">
+          CALC
+        </div>
+        <button
+          onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+          className="backdrop-blur-md bg-ink/5 border border-ink/10 px-3 py-1 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform"
+        >
+          {theme === 'light' ? 'DARK' : 'LIGHT'}
+        </button>
+      </div>
+
+      {activeTab === 'SPENT' && (
+        <SpentTab
+          monthTotal={monthTotal}
+          spendByDay={spendByDay}
+          expandedDays={expandedDays}
+          setExpandedDays={setExpandedDays}
+          onEdit={(id) => { setEditingSpendId(id); setIsSheetOpen(true); }}
+          onDelete={(id) => handleDeleteEntry(id, 'SPEND')}
+        />
+      )}
+
+      {activeTab === 'CHRONICLE' && (
+        <ChronicleTab
+          sortedFriends={sortedFriends}
+          debtTransactions={debtTransactions}
+          sortType={sortType}
+          getFriendBalance={getFriendBalance}
+          onSortCycle={handleSortCycle}
+          viewState={viewState}
+          onViewDetail={(name) => setViewState({ type: 'DETAIL', id: name })}
+          onBack={() => setViewState({ type: 'LIST' })}
+          onSettle={handleSettle}
+          onDelete={(id) => handleDeleteEntry(id, 'DEBT')}
+          onEdit={(id) => { setEditingDebtId(id); setIsSheetOpen(true); }}
+        />
+      )}
+
+      {/* FAB */}
+      <button
+        onClick={() => setIsSheetOpen(true)}
+        className="fixed bottom-24 right-8 w-14 h-14 bg-ink text-bg flex items-center justify-center text-3xl z-40 hover:scale-105 active:scale-95 transition-transform"
+      >
+        +
+      </button>
+
+      {/* Tabs */}
+      <div className="fixed bottom-0 left-0 right-0 border-t border-ink bg-bg flex z-40 max-w-lg mx-auto">
+        <TabButton label="SPENT" active={activeTab === 'SPENT'} />
+        <TabButton label="CHRONICLE" active={activeTab === 'CHRONICLE'} />
+      </div>
+
+      {/* Sheet */}
+      <AnimatePresence>
+        {isSheetOpen && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsSheetOpen(false)} className="fixed inset-0 bg-ink/10 z-40 backdrop-blur-[2px]" />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-bg border-t border-ink max-w-lg mx-auto"
+            >
+              <div className="ascii-torn bg-ink text-bg py-1 text-center">^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/</div>
+              {activeTab === 'SPENT' ? (
+                <SpendEntryForm
+                  initialData={editingSpendId ? spendEntries.find(e => e.id === editingSpendId) : undefined}
+                  friends={friends}
+                  onSubmit={handleAddSpend}
+                  onClose={closeSheet}
+                />
+              ) : (
+                <DebtEntryForm
+                  initialData={editingDebtId ? debtTransactions.find(t => t.id === editingDebtId) : undefined}
+                  friends={friends}
+                  onSubmit={handleAddDebt}
+                  onClose={closeSheet}
+                />
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Undo toast */}
+      <AnimatePresence>
+        {showUndoToast && undoStack.length > 0 && (
+          <motion.div
+            initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }}
+            className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-ink text-bg border-2 border-bg shadow-[8px_8px_0px_0px_var(--ink)] flex items-center gap-4"
+          >
+            <span className="text-xs font-mono font-bold tracking-widest uppercase">Action Saved</span>
+            <button onClick={handleUndo} className="bg-bg text-ink px-3 py-1 text-[10px] font-mono font-bold hover:invert transition-colors">UNDO</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Fleeting kaomoji */}
+      <AnimatePresence>
+        {fleetingKaomoji && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="fixed inset-0 pointer-events-none flex items-center justify-center z-[60]">
+            <div className="bg-bg border border-ink p-4 text-2xl">{fleetingKaomoji}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function SpendEntryForm({ initialData, friends, onSubmit, onClose }: { initialData?: SpendEntry; friends: Friend[]; onSubmit: (t: Omit<SpendEntry, 'id'>, friendName?: string) => void; onClose: () => void }) {
+  const [amount, setAmount] = useState(initialData?.amount?.toString() || '');
+  const [note, setNote] = useState(initialData?.note || '');
+  const [tag, setTag] = useState(initialData?.tag || '');
+  const [friendName, setFriendName] = useState('');
+  const [date, setDate] = useState(new Date(initialData?.date || Date.now()).toISOString().split('T')[0]);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!initialData) inputRef.current?.focus();
+  }, [initialData]);
+
+  const handle = (type: 'SPENT' | 'EARNED') => {
+    const val = parseFloat(amount);
+    if (isNaN(val)) return;
+    onSubmit({ amount: val, note: note || '...', tag: tag || undefined, date: new Date(date).getTime(), type }, friendName);
+  };
+
+  return (
+    <div className="p-6 pb-10 space-y-8 font-sans">
+      <div className="flex justify-between items-center px-1">
+        <h3 className="text-[10px] font-mono font-bold tracking-[0.2em] opacity-40 uppercase">{initialData ? 'Edit entry' : 'New transaction'}</h3>
+        <button onClick={onClose} className="text-[10px] font-mono font-bold underline opacity-60 active:opacity-100">CANCEL</button>
+      </div>
+      <div className="space-y-6">
+        <div className="space-y-1">
+          <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">AMOUNT</div>
+          <div className="flex items-baseline border-b-4 border-ink pb-1">
+            <input ref={inputRef} type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} className="flex-1 bg-transparent outline-none text-7xl font-display font-black tracking-tighter" placeholder="0" />
+            <span className="text-3xl font-mono font-black opacity-10 ml-2">U</span>
+          </div>
+        </div>
+        <div className="space-y-6">
+          <div className="space-y-1">
+            <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">DESCRIPTION</div>
+            <input value={note} onChange={e => setNote(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-3 text-lg font-sans" placeholder="..." />
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-1">
+              <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">TAG</div>
+              <input value={tag} onChange={e => setTag(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-3 text-sm font-mono font-bold" list="tags-list" placeholder="[NONE]" />
+              <datalist id="tags-list">
+                <option value="eat-out" />
+                <option value="snacks" />
+                <option value="misc" />
+              </datalist>
+            </div>
+            <div className="space-y-1">
+              <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">DATE</div>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-3 text-sm font-mono font-bold" />
+            </div>
+          </div>
+          {!initialData && (
+            <div className="space-y-1">
+              <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">FRIEND (OPTIONAL)</div>
+              <input value={friendName} onChange={e => setFriendName(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-3 text-sm font-mono font-bold" list="friends-list" placeholder="Leave empty if none" />
+              <datalist id="friends-list">{friends.map(f => <option key={f.name} value={f.name} />)}</datalist>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-col gap-3 pt-6">
+        <button onClick={() => handle('SPENT')} className="w-full bg-ink text-bg py-5 font-display text-xl font-bold border-2 border-ink tracking-[0.05em] active:scale-[0.97] transition-transform">
+          LOG AS SPENT
+        </button>
+        <button onClick={() => handle('EARNED')} className="w-full bg-transparent text-ink py-4 font-display text-base font-bold border-2 border-ink tracking-widest active:scale-[0.97] transition-transform opacity-60">
+          LOG AS EARNED
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DebtEntryForm({ initialData, friends, onSubmit, onClose }: { initialData?: DebtTransaction; friends: Friend[]; onSubmit: (t: Omit<DebtTransaction, 'id' | 'date' | 'settled'>) => void; onClose: () => void }) {
+  const [name, setName] = useState(initialData?.friendName || friends[0]?.name || '');
+  const [direction, setDirection] = useState<Direction>(initialData?.direction || 'LENT');
+  const [amountRaw, setAmountRaw] = useState(initialData?.amountRaw || '');
+  const [note, setNote] = useState(initialData?.note || '');
+
+  const handle = () => {
+    if (!name.trim()) return;
+    const val = parseFloat(amountRaw.match(/(\d+(\.\d+)?)/)?.[0] || '0');
+    onSubmit({ friendName: name, direction, amountRaw, amountValue: val, note: note || '...' });
+  };
+
+  return (
+    <div className="p-6 space-y-8 font-sans">
+      <div className="flex justify-between items-center px-1">
+        <h3 className="text-[10px] font-mono font-bold tracking-[0.2em] opacity-40 uppercase">{initialData ? 'Edit Chronicle' : 'New Chronicle'}</h3>
+        <button onClick={onClose} className="text-[10px] font-mono font-bold underline opacity-60 active:opacity-100">CANCEL</button>
+      </div>
+      <div className="space-y-6">
+        <div className="space-y-1">
+          <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">FRIEND</div>
+          <input value={name} onChange={e => setName(e.target.value)} className="w-full border-b-2 border-ink bg-transparent outline-none py-2 text-3xl font-display font-bold uppercase" list="friends-list" placeholder="NAME" />
+          <datalist id="friends-list">{friends.map(f => <option key={f.name} value={f.name} />)}</datalist>
+        </div>
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">DIRECTION</div>
+            <div className="flex border-2 border-ink overflow-hidden font-display font-bold text-xs">
+              <button onClick={() => setDirection('LENT')} className={`flex-1 py-3 transition-colors ${direction === 'LENT' ? 'bg-ink text-bg' : 'bg-transparent text-ink'}`}>I LENT</button>
+              <button onClick={() => setDirection('PAID')} className={`flex-1 py-3 transition-colors ${direction === 'PAID' ? 'bg-ink text-bg' : 'bg-transparent text-ink'}`}>I PAID</button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-1">
+              <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">AMOUNT</div>
+              <input value={amountRaw} onChange={e => setAmountRaw(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-2 font-mono font-bold text-2xl" placeholder="0 INR" />
+            </div>
+            <div className="space-y-1">
+              <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">NOTE</div>
+              <input value={note} onChange={e => setNote(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-2 text-base" placeholder="Optional context" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <button onClick={handle} className="w-full bg-ink text-bg py-5 font-display text-xl font-bold border-2 border-ink tracking-widest uppercase active:scale-[0.98] transition-transform">
+        CONFIRM ENTRY
+      </button>
+    </div>
+  );
+}

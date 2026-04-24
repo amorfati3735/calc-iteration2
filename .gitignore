@@ -1,0 +1,29 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+
+# Secrets — block every .env variant except the example
+.env
+.env.*
+.env.local
+.env.development
+.env.production
+.env.staging
+!.env.example
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+Thumbs.db
+
+# API key / secret files that may appear
+*.pem
+*.key
+secrets.*
+credentials.*

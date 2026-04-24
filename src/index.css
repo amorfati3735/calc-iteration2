@@ -1,0 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --color-bg: var(--bg);
+  --color-ink: var(--ink);
+}
+
+:root {
+  --bg: #EFECE7;
+  --ink: #000000;
+  --grid: rgba(0, 0, 0, 0.05);
+}
+
+.dark {
+  --bg: #151515;
+  --ink: #F5F2ED;
+  --grid: rgba(245, 242, 237, 0.05);
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-weight: 400;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* Faint graph paper grid */
+.grid-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: 
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 20px 20px;
+  z-index: -1;
+}
+
+/* Global scrollbar for the brutalist look */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--ink);
+  border-radius: 0;
+}
+
+* {
+  border-radius: 0 !important;
+}
+
+.notebook-row {
+  border-bottom: 1px solid var(--ink);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.5rem 0;
+  position: relative;
+}
+
+.notebook-dots {
+  flex-grow: 1;
+  border-bottom: 1px dotted var(--ink);
+  margin: 0 0.5rem;
+}
+
+.brutal-box {
+  border: 1px solid var(--ink);
+  padding: 1rem;
+  background-color: var(--bg);
+  position: relative;
+}
+
+.torn-edge {
+  position: relative;
+  clip-path: polygon(
+    0% 0%, 
+    5% 2%, 10% 0%, 15% 2%, 20% 0%, 25% 2%, 30% 0%, 35% 2%, 40% 0%, 45% 2%, 50% 0%, 55% 2%, 60% 0%, 65% 2%, 70% 0%, 75% 2%, 80% 0%, 85% 2%, 90% 0%, 95% 2%, 100% 0%,
+    100% 100%, 0% 100%
+  );
+}
+
+/* The ASCII torn edge is better done with a repeating character */
+.ascii-torn {
+  line-height: 0.5;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 1.5rem;
+  margin-top: -0.5rem;
+}
+
+.strike-through {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
