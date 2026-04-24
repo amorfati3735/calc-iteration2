@@ -10,6 +10,7 @@ export interface DebtTransaction {
   date: number; // timestamp
   direction: Direction;
   settled: boolean;
+  linkedSpendId?: string;
 }
 
 export interface Friend {
@@ -24,6 +25,7 @@ export interface SpendEntry {
   tag?: string;
   date: number; // timestamp
   type: 'SPENT' | 'EARNED';
+  linkedDebtId?: string;
 }
 
 export type SortType = 'NAME' | 'AMOUNT' | 'RECENT';

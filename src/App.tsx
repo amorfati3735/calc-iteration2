@@ -71,6 +71,36 @@ export default function App() {
     }
   }, [dataLoaded]);
 
+  // History API for back button support
+  useEffect(() => {
+    const handlePopState = () => {
+      setIsSheetOpen(false);
+      setIsSidebarOpen(false);
+      setViewState({ type: 'LIST' });
+      setEditingSpendId(null);
+      setEditingDebtId(null);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const openModal = (action: () => void) => {
+    window.history.pushState({ opened: true }, '');
+    action();
+  };
+
+  const handleCloseModal = () => {
+    if (window.history.state?.opened) {
+      window.history.back();
+    } else {
+      setIsSheetOpen(false);
+      setIsSidebarOpen(false);
+      setViewState({ type: 'LIST' });
+      setEditingSpendId(null);
+      setEditingDebtId(null);
+    }
+  };
+
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     localStorage.setItem('calc_theme', theme);
@@ -157,20 +187,21 @@ export default function App() {
     if (editingSpendId) {
       await updateSpend(editingSpendId, entry);
     } else {
-      await addSpend(entry);
+      const spendId = await addSpend(entry);
+      if (friendName && friendName.trim() && spendId) {
+        const debtId = await addDebt({
+          friendName: friendName.trim(),
+          direction: 'LENT',
+          amountRaw: entry.amount.toString(),
+          amountValue: entry.amount,
+          note: entry.note || (entry.tag ? `Spent on ${entry.tag}` : 'Added from Spent'),
+          linkedSpendId: spendId
+        });
+        await updateSpend(spendId, { ...entry, linkedDebtId: debtId });
+      }
     }
 
-    if (friendName && friendName.trim() && !editingSpendId) {
-      await addDebt({
-        friendName: friendName.trim(),
-        direction: 'LENT',
-        amountRaw: entry.amount.toString(),
-        amountValue: entry.amount,
-        note: entry.note || (entry.tag ? `Spent on ${entry.tag}` : 'Added from Spent')
-      });
-    }
-
-    closeSheet();
+    handleCloseModal();
     triggerFleeting(KAOMOJI.CONFIRM_1, 400);
     setTimeout(() => setFleetingKaomoji(KAOMOJI.CONFIRM_2), 400);
     setTimeout(() => setFleetingKaomoji(null), 800);
@@ -183,16 +214,10 @@ export default function App() {
     } else {
       await addDebt(t);
     }
-    closeSheet();
+    handleCloseModal();
     triggerFleeting(KAOMOJI.CONFIRM_1, 400);
     setTimeout(() => setFleetingKaomoji(KAOMOJI.CONFIRM_2), 400);
     setTimeout(() => setFleetingKaomoji(null), 800);
-  };
-
-  const closeSheet = () => {
-    setIsSheetOpen(false);
-    setEditingSpendId(null);
-    setEditingDebtId(null);
   };
 
   const handleSettle = async (id: string) => {
@@ -204,8 +229,15 @@ export default function App() {
   const handleDeleteEntry = async (id: string, type: 'SPEND' | 'DEBT') => {
     if (confirm(`DELETE? ${KAOMOJI.DELETE}`)) {
       pushToUndo();
-      if (type === 'SPEND') await deleteSpend(id);
-      else await deleteDebt(id);
+      if (type === 'SPEND') {
+        const entry = spendEntries.find(e => e.id === id);
+        await deleteSpend(id);
+        if (entry?.linkedDebtId) await deleteDebt(entry.linkedDebtId);
+      } else {
+        const entry = debtTransactions.find(e => e.id === id);
+        await deleteDebt(id);
+        if (entry?.linkedSpendId) await deleteSpend(entry.linkedSpendId);
+      }
     }
   };
 
@@ -269,7 +301,7 @@ export default function App() {
       {/* Branding & Theme Toggle */}
       <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 flex gap-2 w-full max-w-[300px] justify-center">
         <button
-          onClick={() => setIsSidebarOpen(true)}
+          onClick={() => openModal(() => setIsSidebarOpen(true))}
           className="backdrop-blur-md bg-ink/5 border border-ink/10 px-3 py-1.5 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform whitespace-nowrap flex-shrink-0"
         >
           [ CFG ]
@@ -291,7 +323,7 @@ export default function App() {
           spendByDay={spendByDay}
           expandedDays={expandedDays}
           setExpandedDays={setExpandedDays}
-          onEdit={(id) => { setEditingSpendId(id); setIsSheetOpen(true); }}
+          onEdit={(id) => openModal(() => { setEditingSpendId(id); setIsSheetOpen(true); })}
           onDelete={(id) => handleDeleteEntry(id, 'SPEND')}
           monthlyBudget={monthlyBudget}
         />
@@ -309,21 +341,31 @@ export default function App() {
           getFriendBalance={getFriendBalance}
           onSortCycle={handleSortCycle}
           viewState={viewState}
-          onViewDetail={(name) => setViewState({ type: 'DETAIL', id: name })}
+          onViewDetail={(name) => openModal(() => setViewState({ type: 'DETAIL', id: name }))}
           onBack={() => setViewState({ type: 'LIST' })}
           onSettle={handleSettle}
           onDelete={(id) => handleDeleteEntry(id, 'DEBT')}
-          onEdit={(id) => { setEditingDebtId(id); setIsSheetOpen(true); }}
+          onEdit={(id) => openModal(() => { setEditingDebtId(id); setIsSheetOpen(true); })}
         />
       )}
 
       {/* FAB */}
       <button
-        onClick={() => setIsSheetOpen(true)}
+        onClick={() => openModal(() => setIsSheetOpen(true))}
         className="fixed bottom-24 right-8 w-14 h-14 bg-ink text-bg flex items-center justify-center text-3xl z-40 hover:scale-105 active:scale-95 transition-transform"
       >
         +
       </button>
+
+      {/* Visual Back Button */}
+      {(isSheetOpen || isSidebarOpen || viewState.type === 'DETAIL') && (
+        <button
+          onClick={handleCloseModal}
+          className="fixed bottom-24 right-[5.5rem] w-14 h-14 bg-bg text-ink border-2 border-ink flex items-center justify-center text-xl z-[60] hover:scale-105 active:scale-95 transition-transform font-mono font-bold"
+        >
+          {'<'}
+        </button>
+      )}
 
       {/* Tabs */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-ink bg-bg flex z-40 max-w-lg mx-auto">
@@ -336,7 +378,7 @@ export default function App() {
       <AnimatePresence>
         {isSheetOpen && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsSheetOpen(false)} className="fixed inset-0 bg-ink/10 z-40 backdrop-blur-[2px]" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={handleCloseModal} className="fixed inset-0 bg-ink/10 z-40 backdrop-blur-[2px]" />
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               className="fixed bottom-0 left-0 right-0 z-50 bg-bg border-t border-ink max-w-lg mx-auto"
@@ -348,14 +390,14 @@ export default function App() {
                   friends={friends}
                   customTags={customTags}
                   onSubmit={handleAddSpend}
-                  onClose={closeSheet}
+                  onClose={handleCloseModal}
                 />
               ) : (
                 <DebtEntryForm
                   initialData={editingDebtId ? debtTransactions.find(t => t.id === editingDebtId) : undefined}
                   friends={friends}
                   onSubmit={handleAddDebt}
-                  onClose={closeSheet}
+                  onClose={handleCloseModal}
                 />
               )}
             </motion.div>
@@ -387,7 +429,7 @@ export default function App() {
 
       <SidebarConfig
         isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
+        onClose={handleCloseModal}
         monthlyBudget={monthlyBudget}
         customTags={customTags}
         updatePreferences={updatePreferences}

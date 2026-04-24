@@ -69,9 +69,28 @@ export function SpentTab({ monthTotal, spendByDay, expandedDays, setExpandedDays
     
     // Daily Aim
     const dAim = daysLeftInMonth > 0 ? remMonth / daysLeftInMonth : remMonth;
-    // Remaining Weekly
-    const daysLeftInWeek = 7 - now.getDay(); // till end of week
-    const remWeek = dAim * Math.min(daysLeftInWeek, daysLeftInMonth);
+    
+    // Remaining Weekly (Hardcoded logic)
+    const day = now.getDate();
+    const currentWeek = day <= 7 ? 1 : day <= 14 ? 2 : day <= 21 ? 3 : 4;
+    const startDay = (currentWeek - 1) * 7 + 1;
+    const endDay = currentWeek === 4 ? 31 : currentWeek * 7;
+    
+    let currentWeekSpend = 0;
+    spendByDay.forEach(([dateStr, entries]) => {
+      const d = new Date(dateStr);
+      if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
+        const dd = d.getDate();
+        if (dd >= startDay && dd <= endDay) {
+          entries.forEach(e => {
+            if (e.type === 'SPENT') currentWeekSpend += e.amount;
+            else currentWeekSpend -= e.amount;
+          });
+        }
+      }
+    });
+    
+    const remWeek = (monthlyBudget / 4) - currentWeekSpend;
 
     return { 
       dailyAim: Math.max(0, Math.round(dAim)), 
@@ -79,7 +98,7 @@ export function SpentTab({ monthTotal, spendByDay, expandedDays, setExpandedDays
       remainingMonthly: Math.round(remMonth),
       hasBudget: true
     };
-  }, [monthlyBudget, monthTotal]);
+  }, [monthlyBudget, monthTotal, spendByDay]);
 
   return (
     <div className="space-y-8 pb-12">
@@ -177,7 +196,7 @@ export function SpentTab({ monthTotal, spendByDay, expandedDays, setExpandedDays
                   <div key={month} className="p-4 border-2 border-ink border-dashed font-mono text-xs bg-bg">
                     <div className="text-center font-bold mb-4 tracking-widest border-b border-ink border-dotted pb-2">=== {month} ===</div>
                     <div className="space-y-2 mb-4">
-                      {Object.entries(data.tags).sort((a, b) => b[1] - a[1]).map(([tag, amt]) => (
+                      {Object.entries(data.tags).sort((a, b) => (b[1] as number) - (a[1] as number)).map(([tag, amt]) => (
                         <div key={tag} className="flex justify-between">
                           <span>{tag.padEnd(15, '.')}</span>
                           <span>{amt}</span>

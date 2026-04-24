@@ -102,6 +102,7 @@ export function useFinanceData(uid: string | null) {
     const id = crypto.randomUUID();
     const newEntry: SpendEntry = { ...entry, id };
     await set(ref(db, `users/${uid}/spendEntries/${id}`), newEntry);
+    return id;
   }, [uid]);
 
   const updateSpend = useCallback(async (id: string, entry: Omit<SpendEntry, 'id'>) => {
@@ -121,6 +122,7 @@ export function useFinanceData(uid: string | null) {
     await set(ref(db, `users/${uid}/debtTransactions/${id}`), newT);
     const friendKey = t.friendName.replace(/[.#$/\[\]]/g, '_');
     await set(ref(db, `users/${uid}/friends/${friendKey}`), { name: t.friendName, lastActive: Date.now() });
+    return id;
   }, [uid]);
 
   const updateDebt = useCallback(async (id: string, t: Partial<DebtTransaction>) => {
