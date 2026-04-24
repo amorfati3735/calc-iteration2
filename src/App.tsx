@@ -250,7 +250,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen px-4 pt-12 pb-40 max-w-lg mx-auto relative cursor-default select-none font-sans overflow-x-hidden ${theme}`}>
+    <div className={`min-h-screen px-4 pt-24 pb-40 max-w-lg mx-auto relative cursor-default select-none font-sans overflow-x-hidden ${theme}`}>
       <div className="grid-overlay" />
 
       {/* Import prompt */}
@@ -267,21 +267,21 @@ export default function App() {
       )}
 
       {/* Branding & Theme Toggle */}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 flex gap-2">
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 flex gap-2 w-full max-w-[300px] justify-center">
         <button
           onClick={() => setIsSidebarOpen(true)}
-          className="backdrop-blur-md bg-ink/5 border border-ink/10 px-3 py-1 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform"
+          className="backdrop-blur-md bg-ink/5 border border-ink/10 px-3 py-1.5 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform whitespace-nowrap flex-shrink-0"
         >
           [ CFG ]
         </button>
-        <div className="backdrop-blur-md bg-ink/5 border border-ink/10 px-3 py-1 text-[10px] tracking-widest font-mono text-ink">
+        <div className="backdrop-blur-md bg-ink/5 border border-ink/10 px-4 py-1.5 text-[10px] tracking-widest font-mono text-ink whitespace-nowrap flex-shrink-0 font-bold">
           CALC
         </div>
         <button
           onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-          className="backdrop-blur-md bg-ink/5 border border-ink/10 px-3 py-1 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform"
+          className="backdrop-blur-md bg-ink/5 border border-ink/10 px-3 py-1.5 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform whitespace-nowrap flex-shrink-0"
         >
-          {theme === 'light' ? 'DARK' : 'LIGHT'}
+          {theme === 'light' ? 'DARK' : 'LITE'}
         </button>
       </div>
 
@@ -451,12 +451,14 @@ function SpendEntryForm({ initialData, friends, customTags, onSubmit, onClose }:
           {!initialData && (
             <div className="space-y-1">
               <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">FRIEND (OPTIONAL)</div>
-              <input value={friendName} onChange={e => setFriendName(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-3 text-sm font-mono font-bold mb-2" placeholder="" />
-              <div className="flex flex-wrap gap-2">
-                {friends.slice(0, 3).map(f => (
-                  <button key={f.name} onClick={() => setFriendName(f.name)} className={`px-2 py-1 border border-ink text-xs font-mono transition-colors ${friendName === f.name ? 'bg-ink text-bg' : 'bg-transparent text-ink'}`}>[{f.name}]</button>
-                ))}
-              </div>
+              <input value={friendName} onChange={e => setFriendName(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-2 text-sm font-mono font-bold mb-2" placeholder="..." />
+              {friends.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {friends.slice(0, 3).map(f => (
+                    <button key={f.name} onClick={() => setFriendName(f.name)} className={`px-2 py-1 border border-ink text-xs font-mono transition-colors whitespace-nowrap ${friendName === f.name ? 'bg-ink text-bg' : 'bg-transparent text-ink'}`}>[{f.name}]</button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
