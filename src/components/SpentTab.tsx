@@ -139,7 +139,8 @@ export function SpentTab({ monthTotal, spendByDay, expandedDays, setExpandedDays
             <div key={day} className="space-y-2">
               <div
                 onClick={() => setExpandedDays(prev => ({ ...prev, [day]: !prev[day] }))}
-                className="brutal-box flex justify-between items-baseline cursor-pointer group"
+                className="brutal-box flex justify-between items-baseline cursor-pointer group hand-ruled-border"
+                style={{ borderLeft: '2px solid #c0392b' }}
               >
                 <span className="font-display text-sm">{isToday ? 'TODAY' : formatBrutalDate(new Date(day).getTime())}</span>
                 <div className="flex-grow border-b border-dotted border-ink opacity-20 mx-4 group-hover:opacity-40 transition-opacity" />

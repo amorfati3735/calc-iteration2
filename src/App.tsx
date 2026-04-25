@@ -287,6 +287,7 @@ export default function App() {
   return (
     <div className={`min-h-screen px-4 pt-24 pb-40 max-w-lg mx-auto relative cursor-default select-none font-sans overflow-x-hidden ${theme}`}>
       <div className={gridStyle === 'dots' ? 'dot-grid' : 'grid-overlay'} />
+      <div className="washi-grain" />
 
       {/* Import prompt */}
       {needsImport && (
@@ -309,14 +310,11 @@ export default function App() {
         >
           [ CFG ]
         </button>
-        <div className="backdrop-blur-md bg-ink/5 border border-ink/10 px-4 py-1.5 text-[10px] tracking-widest font-mono text-ink whitespace-nowrap flex-shrink-0 font-bold">
-          CALC
-        </div>
         <button
           onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-          className="backdrop-blur-md bg-ink/5 border border-ink/10 px-3 py-1.5 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform whitespace-nowrap flex-shrink-0"
+          className="backdrop-blur-md bg-ink/5 border border-ink/10 px-4 py-1.5 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform whitespace-nowrap flex-shrink-0 font-bold"
         >
-          {theme === 'light' ? 'DARK' : 'LITE'}
+          CALC
         </button>
       </div>
 
@@ -371,7 +369,7 @@ export default function App() {
       )}
 
       {/* Tabs */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-ink bg-bg flex z-40 max-w-lg mx-auto">
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[85%] max-w-[400px] border border-ink/30 bg-bg/80 backdrop-blur-md rounded-xl flex z-40 overflow-hidden shadow-[0_8px_30px_rgba(43,0,212,0.1)]">
         <TabButton label="SPENT" active={activeTab === 'SPENT'} />
         <TabButton label="ANALYTICS" active={activeTab === 'ANALYTICS'} />
         <TabButton label="CHRONICLE" active={activeTab === 'CHRONICLE'} />
