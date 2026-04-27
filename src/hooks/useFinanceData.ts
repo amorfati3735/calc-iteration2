@@ -6,15 +6,29 @@ import { SpendEntry, DebtTransaction, Friend, SortType, AppState } from '../type
 const STORAGE_KEY = 'calc_v2';
 
 export function useFinanceData(uid: string | null) {
-  const [dataLoaded, setDataLoaded] = useState(false);
-  const [spendEntries, setSpendEntries] = useState<SpendEntry[]>([]);
-  const [debtTransactions, setDebtTransactions] = useState<DebtTransaction[]>([]);
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const [sortType, setSortType] = useState<SortType>('NAME');
-  const [monthlyBudget, setMonthlyBudget] = useState<number>(0);
-  const [customTags, setCustomTags] = useState<string[]>(['eat-out', 'snacks', 'misc']);
+  // 1. Initialize state synchronously from localStorage if available
+  const [dataLoaded, setDataLoaded] = useState(() => {
+    return !!localStorage.getItem(STORAGE_KEY);
+  });
+
+  const getInitialState = () => {
+    try {
+      const local = localStorage.getItem(STORAGE_KEY);
+      return local ? JSON.parse(local) : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const init = getInitialState();
+
+  const [spendEntries, setSpendEntries] = useState<SpendEntry[]>(init.spendEntries || []);
+  const [debtTransactions, setDebtTransactions] = useState<DebtTransaction[]>(init.debtTransactions || []);
+  const [friends, setFriends] = useState<Friend[]>(init.friends || []);
+  const [sortType, setSortType] = useState<SortType>(init.sortType || 'NAME');
+  const [monthlyBudget, setMonthlyBudget] = useState<number>(init.preferences?.monthlyBudget || 0);
+  const [customTags, setCustomTags] = useState<string[]>(init.preferences?.customTags || ['eat-out', 'snacks', 'misc']);
   const [needsImport, setNeedsImport] = useState(false);
-  const initialLoadDone = useRef(false);
 
   useEffect(() => {
     if (!uid) {
@@ -36,26 +50,32 @@ export function useFinanceData(uid: string | null) {
           ? Object.values(data.friends) as Friend[]
           : [];
         const sort = data.preferences?.sortType || 'NAME';
+        const budget = data.preferences?.monthlyBudget || 0;
+        const tags = data.preferences?.customTags || ['eat-out', 'snacks', 'misc'];
 
         setSpendEntries(spend);
         setDebtTransactions(debts);
         setFriends(fr);
         setSortType(sort);
-        setMonthlyBudget(data.preferences?.monthlyBudget || 0);
-        setCustomTags(data.preferences?.customTags || ['eat-out', 'snacks', 'misc']);
+        setMonthlyBudget(budget);
+        setCustomTags(tags);
         setNeedsImport(false);
-      } else {
-        const local = localStorage.getItem(STORAGE_KEY);
-        if (local && !initialLoadDone.current) {
-          try {
-            const parsed: AppState = JSON.parse(local);
-            if ((parsed.spendEntries?.length || 0) > 0 || (parsed.debtTransactions?.length || 0) > 0) {
-              setNeedsImport(true);
-            }
-          } catch {}
-        }
+
+        // Save fresh network state to localStorage for offline-first boots
+        const newState: Partial<AppState> = {
+          spendEntries: spend,
+          debtTransactions: debts,
+          friends: fr,
+          sortType: sort,
+          preferences: { monthlyBudget: budget, customTags: tags }
+        };
+        
+        const existingRaw = localStorage.getItem(STORAGE_KEY);
+        let existing = {};
+        try { if (existingRaw) existing = JSON.parse(existingRaw); } catch {}
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...existing, ...newState }));
+
       }
-      initialLoadDone.current = true;
       setDataLoaded(true);
     });
 

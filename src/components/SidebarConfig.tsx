@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+
 
 interface SidebarConfigProps {
   isOpen: boolean;
@@ -74,23 +74,14 @@ export function SidebarConfig({
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-ink/10 z-50 backdrop-blur-[2px]"
-          />
-          <motion.div
-            initial={{ x: '-100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '-100%' }}
-            transition={{ type: 'tween', ease: 'circOut' }}
-            className="fixed top-0 bottom-0 left-0 w-64 bg-bg border-r-2 border-ink z-[60] p-6 space-y-8 overflow-y-auto"
-          >
+    <>
+      <div
+        onClick={onClose}
+        className={`fixed inset-0 bg-ink/10 z-50 backdrop-blur-[2px] transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      />
+      <div
+        className={`fixed top-0 bottom-0 left-0 w-64 bg-bg border-r-2 border-ink z-[60] p-6 space-y-8 overflow-y-auto transition-transform duration-300 ease-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+      >
             <div className="flex justify-between items-center border-b-2 border-ink pb-2">
               <span className="font-mono font-bold tracking-widest text-xs">CONFIG</span>
               <button onClick={onClose} className="font-mono text-xs opacity-60">[ X ]</button>
@@ -198,9 +189,7 @@ export function SidebarConfig({
                 EXPORT ALL DATA (JSON)
               </button>
             </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+      </div>
+    </>
   );
 }

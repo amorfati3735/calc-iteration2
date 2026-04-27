@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { DebtTransaction, Friend, SortType, SpendEntry } from '../types';
 import { AnalyticsTab } from './AnalyticsTab';
 
@@ -31,8 +31,8 @@ interface ChronicleTabProps {
   customTags: string[];
 }
 
-export function ChronicleTab({ sortedFriends, debtTransactions, sortType, getFriendBalance, onSortCycle, viewState, onViewDetail, onBack, onSettle, onDelete, onEdit, spendEntries, customTags }: ChronicleTabProps) {
-  const [subTab, setSubTab] = useState<'CHRONICLE' | 'ANALYTICS'>('CHRONICLE');
+export const ChronicleTab = memo(function ChronicleTab({ sortedFriends, debtTransactions, sortType, getFriendBalance, onSortCycle, viewState, onViewDetail, onBack, onSettle, onDelete, onEdit, spendEntries, customTags }: ChronicleTabProps) {
+  const [subTab, setSubTab] = useState<'FRIENDS' | 'ANALYTICS'>('FRIENDS');
 
   if (viewState.type === 'DETAIL' && viewState.id) {
     return (
@@ -52,10 +52,10 @@ export function ChronicleTab({ sortedFriends, debtTransactions, sortType, getFri
       <div className="flex justify-between items-center h-8">
         <div className="flex gap-4">
           <button
-            onClick={() => setSubTab('CHRONICLE')}
-            className={`text-xs font-mono font-bold tracking-widest px-2 py-1 -ml-2 transition-opacity ${subTab === 'CHRONICLE' ? 'underline opacity-100' : 'opacity-40 hover:opacity-80'}`}
+            onClick={() => setSubTab('FRIENDS')}
+            className={`text-xs font-mono font-bold tracking-widest px-2 py-1 -ml-2 transition-opacity ${subTab === 'FRIENDS' ? 'underline opacity-100' : 'opacity-40 hover:opacity-80'}`}
           >
-            CHRONICLE
+            FRIENDS
           </button>
           <button
             onClick={() => setSubTab('ANALYTICS')}
@@ -64,7 +64,7 @@ export function ChronicleTab({ sortedFriends, debtTransactions, sortType, getFri
             ANALYTICS
           </button>
         </div>
-        {subTab === 'CHRONICLE' && (
+        {subTab === 'FRIENDS' && (
           <button
             onClick={onSortCycle}
             className="text-[10px] opacity-60 underline font-mono font-bold tracking-widest px-2 py-1 active:opacity-100"
@@ -74,7 +74,7 @@ export function ChronicleTab({ sortedFriends, debtTransactions, sortType, getFri
         )}
       </div>
 
-      {subTab === 'CHRONICLE' ? (
+      {subTab === 'FRIENDS' ? (
         <div className="grid grid-cols-2 gap-4">
           {sortedFriends.length === 0 && (
             <div className="col-span-2 py-20 text-center opacity-50">
@@ -108,7 +108,7 @@ export function ChronicleTab({ sortedFriends, debtTransactions, sortType, getFri
       )}
     </div>
   );
-}
+});
 
 function FriendDetail({ name, transactions, onSettle, onBack, onDelete, onEdit }: { name: string; transactions: DebtTransaction[]; onSettle: (id: string) => void; onBack: () => void; onDelete: (id: string) => void; onEdit: (id: string) => void }) {
   const [showKaomojiLocal, setShowKaomojiLocal] = useState<string | null>(null);

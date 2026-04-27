@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useEffect, useMemo, useRef, memo } from 'react';
+
 import { StudySession, RunningSession } from '../types';
 
 const formatBrutalDate = (timestamp: number) => {
@@ -121,7 +121,7 @@ export function TodayPill({
   );
 }
 
-export function FocusTab({
+export const FocusTab = memo(function FocusTab({
   studySessions,
   runningSession,
   dailyStudyGoalMin,
@@ -507,48 +507,65 @@ export function FocusTab({
                   {formatDurationShort(dayTotal)}
                 </span>
               </div>
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden pl-4 space-y-2"
-                  >
-                    {sessions.map(s => (
+              <div className={`overflow-hidden pl-4 space-y-2 transition-all duration-300 ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                {sessions.map(s => {
+                  if (s.subject === 'NOTE') {
+                    return (
                       <div
                         key={s.id}
-                        className="flex justify-between items-baseline text-xs group pr-2 cursor-pointer active:opacity-50"
+                        className="flex items-baseline text-sm group pr-2 cursor-pointer active:opacity-50 py-1.5"
                         onClick={() => onEditSession(s.id)}
                         onContextMenu={ev => {
                           ev.preventDefault();
                           onDeleteSession(s.id);
                         }}
                       >
-                        <div className="flex items-baseline gap-2 min-w-0 flex-1">
-                          <span className="font-mono uppercase opacity-60 text-[10px]">
-                            [{s.subject}]
-                          </span>
-                          <span className="font-sans truncate">
-                            {s.name || s.note || '...'}
-                          </span>
-                        </div>
-                        <div className="flex items-baseline gap-2 flex-shrink-0">
-                          <span className="font-mono opacity-30 text-[10px] tabular-nums">
-                            {new Date(s.startedAt).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                          <span className="font-mono font-bold tabular-nums">
-                            {formatDurationShort(s.durationMs)}
-                          </span>
-                        </div>
+                        <span className="font-mono text-xs opacity-40 tabular-nums w-14 flex-shrink-0">
+                          {new Date(s.startedAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                        <span className="font-sans italic opacity-70 flex-1 break-words">
+                          {s.note}
+                        </span>
                       </div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={s.id}
+                      className="flex justify-between items-baseline text-sm group pr-2 cursor-pointer active:opacity-50 py-2 border-b border-ink/5 last:border-0"
+                      onClick={() => onEditSession(s.id)}
+                      onContextMenu={ev => {
+                        ev.preventDefault();
+                        onDeleteSession(s.id);
+                      }}
+                    >
+                      <div className="flex items-baseline gap-3 min-w-0 flex-1">
+                        <span className="font-mono font-bold uppercase opacity-80 text-xs tracking-wider">
+                          [{s.subject}]
+                        </span>
+                        <span className="font-sans truncate text-base">
+                          {s.name || s.note || '...'}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-3 flex-shrink-0 pl-2">
+                        <span className="font-mono opacity-40 text-xs tabular-nums hidden sm:inline-block">
+                          {new Date(s.startedAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                        <span className="font-mono font-black text-base tabular-nums">
+                          {formatDurationShort(s.durationMs)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           );
         })}
@@ -563,14 +580,14 @@ export function FocusTab({
           >
             [ {showArchive ? 'HIDE ARCHIVE' : 'SHOW ARCHIVE'} ]
           </button>
-          <AnimatePresence>
-            {showArchive && <FocusArchive sessions={studySessions} />}
-          </AnimatePresence>
+          <div className={`overflow-hidden transition-all duration-300 ${showArchive ? 'max-h-[5000px] opacity-100 mt-6' : 'max-h-0 opacity-0'}`}>
+            <FocusArchive sessions={studySessions} />
+          </div>
         </div>
       )}
     </div>
   );
-}
+});
 
 function FocusArchive({ sessions }: { sessions: StudySession[] }) {
   const archive = useMemo(() => {
@@ -602,24 +619,14 @@ function FocusArchive({ sessions }: { sessions: StudySession[] }) {
 
   if (archive.length === 0) {
     return (
-      <motion.div
-        initial={{ height: 0, opacity: 0 }}
-        animate={{ height: 'auto', opacity: 1 }}
-        exit={{ height: 0, opacity: 0 }}
-        className="overflow-hidden text-center py-6 font-mono text-xs opacity-40"
-      >
+      <div className="text-center py-6 font-mono text-xs opacity-40">
         nothing archived yet
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ height: 0, opacity: 0 }}
-      animate={{ height: 'auto', opacity: 1 }}
-      exit={{ height: 0, opacity: 0 }}
-      className="overflow-hidden space-y-6 mt-6"
-    >
+    <div className="space-y-6">
       {archive.map(([month, data]) => (
         <div
           key={month}
@@ -644,6 +651,6 @@ function FocusArchive({ sessions }: { sessions: StudySession[] }) {
           </div>
         </div>
       ))}
-    </motion.div>
+    </div>
   );
 }

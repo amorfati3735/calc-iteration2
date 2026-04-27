@@ -4,11 +4,27 @@ import { db } from '../lib/firebase';
 import { StudySession, RunningSession } from '../types';
 
 export function useStudyData(uid: string | null) {
-  const [studySessions, setStudySessions] = useState<StudySession[]>([]);
+  const STORAGE_KEY = 'calc_v2';
+  
+  const [studyLoaded, setStudyLoaded] = useState(() => {
+    return !!localStorage.getItem(STORAGE_KEY);
+  });
+
+  const getInitialState = () => {
+    try {
+      const local = localStorage.getItem(STORAGE_KEY);
+      return local ? JSON.parse(local) : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const init = getInitialState();
+
+  const [studySessions, setStudySessions] = useState<StudySession[]>(init.studySessions || []);
   const [runningSession, setRunningSession] = useState<RunningSession | null>(null);
-  const [dailyStudyGoalMin, setDailyStudyGoalMin] = useState<number>(0);
-  const [customSubjects, setCustomSubjects] = useState<string[]>(['math', 'physics', 'reading']);
-  const [studyLoaded, setStudyLoaded] = useState(false);
+  const [dailyStudyGoalMin, setDailyStudyGoalMin] = useState<number>(init.preferences?.dailyStudyGoalMin || 0);
+  const [customSubjects, setCustomSubjects] = useState<string[]>(init.preferences?.customSubjects || ['math', 'physics', 'reading']);
 
   useEffect(() => {
     if (!uid) {
@@ -22,12 +38,27 @@ export function useStudyData(uid: string | null) {
         const sessions = data.studySessions
           ? (Object.values(data.studySessions) as StudySession[])
           : [];
+        const goal = data.preferences?.dailyStudyGoalMin || 0;
+        const subjects = data.preferences?.customSubjects || ['math', 'physics', 'reading'];
+
         setStudySessions(sessions);
         setRunningSession(data.runningSession || null);
-        setDailyStudyGoalMin(data.preferences?.dailyStudyGoalMin || 0);
-        setCustomSubjects(
-          data.preferences?.customSubjects || ['math', 'physics', 'reading']
-        );
+        setDailyStudyGoalMin(goal);
+        setCustomSubjects(subjects);
+
+        // Save fresh network state to localStorage
+        const newState: Partial<any> = {
+          studySessions: sessions,
+          preferences: { dailyStudyGoalMin: goal, customSubjects: subjects }
+        };
+        const existingRaw = localStorage.getItem(STORAGE_KEY);
+        let existing: any = {};
+        try { if (existingRaw) existing = JSON.parse(existingRaw); } catch {}
+        
+        // merge preferences carefully
+        const mergedPrefs = { ...existing.preferences, ...newState.preferences };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...existing, ...newState, preferences: mergedPrefs }));
+
       } else {
         setStudySessions([]);
         setRunningSession(null);

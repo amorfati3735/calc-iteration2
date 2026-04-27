@@ -1,14 +1,15 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
+
 import { useAuth } from './hooks/useAuth';
 import { useFinanceData } from './hooks/useFinanceData';
 import { useStudyData } from './hooks/useStudyData';
 import { LoginScreen } from './components/LoginScreen';
-import { SpentTab } from './components/SpentTab';
-import { ChronicleTab } from './components/ChronicleTab';
-import { AnalyticsTab } from './components/AnalyticsTab';
 import { FocusTab, TodayPill } from './components/FocusTab';
-import { SidebarConfig } from './components/SidebarConfig';
+
+const SpentTab = lazy(() => import('./components/SpentTab').then(m => ({ default: m.SpentTab })));
+const ChronicleTab = lazy(() => import('./components/ChronicleTab').then(m => ({ default: m.ChronicleTab })));
+const AnalyticsTab = lazy(() => import('./components/AnalyticsTab').then(m => ({ default: m.AnalyticsTab })));
+const SidebarConfig = lazy(() => import('./components/SidebarConfig').then(m => ({ default: m.SidebarConfig })));
 import { DebtTransaction, SpendEntry, Friend, SortType, Direction, AppState, StudySession, RunningSession } from './types';
 
 const KAOMOJI = {
@@ -74,6 +75,8 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [viewState, setViewState] = useState<{ type: 'LIST' | 'DETAIL'; id?: string }>({ type: 'LIST' });
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isQuickNoteOpen, setIsQuickNoteOpen] = useState(false);
+  const [quickNoteText, setQuickNoteText] = useState('');
   const [editingSpendId, setEditingSpendId] = useState<string | null>(null);
   const [editingDebtId, setEditingDebtId] = useState<string | null>(null);
   const [editingStudyId, setEditingStudyId] = useState<string | null>(null);
@@ -406,8 +409,20 @@ export default function App() {
       return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
     };
     const handler = (e: KeyboardEvent) => {
-      if (isSheetOpen || isSidebarOpen) return;
+      if (isSheetOpen || isSidebarOpen || isQuickNoteOpen) return;
       if (isTextInput(e.target)) return;
+      
+      if (e.code === 'KeyB') {
+        e.preventDefault();
+        setTheme(prev => prev === 'light' ? 'dark' : 'light');
+        return;
+      }
+
+      if (activeTab === 'FOCUS' && e.code === 'KeyN') {
+        e.preventDefault();
+        setIsQuickNoteOpen(true);
+        return;
+      }
       
       if (activeTab === 'FINANCE' && e.code === 'Space') {
         e.preventDefault();
@@ -489,6 +504,49 @@ export default function App() {
         </motion.div>
       )}
 
+      {/* Quick Note Modal */}
+      <div
+        className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-200 ${isQuickNoteOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      >
+        <div onClick={() => setIsQuickNoteOpen(false)} className="absolute inset-0 bg-ink/10 backdrop-blur-[2px]" />
+        <div className="relative w-[90%] max-w-sm bg-bg border border-ink p-6 shadow-[8px_8px_0px_rgba(43,0,212,0.1)] brutal-box transition-transform duration-200" style={{ transform: isQuickNoteOpen ? 'scale(1)' : 'scale(0.95)' }}>
+          <div className="text-[10px] opacity-50 font-mono tracking-widest mb-4">QUICK NOTE</div>
+          <input
+            autoFocus
+            value={quickNoteText}
+            onChange={e => setQuickNoteText(e.target.value)}
+            onKeyDown={async e => {
+              if (e.key === 'Escape') {
+                setIsQuickNoteOpen(false);
+                setQuickNoteText('');
+              } else if (e.key === 'Enter' && quickNoteText.trim()) {
+                pushToStudyUndo();
+                const id = crypto.randomUUID();
+                const now = Date.now();
+                const newSession = {
+                  id,
+                  subject: 'NOTE',
+                  note: quickNoteText.trim(),
+                  startedAt: now,
+                  endedAt: now,
+                  durationMs: 0,
+                  pausedMs: 0,
+                  distractions: 0
+                };
+                const { ref, set } = await import('firebase/database');
+                const { db } = await import('./lib/firebase');
+                await set(ref(db, `users/${user!.uid}/studySessions/${id}`), newSession);
+                setIsQuickNoteOpen(false);
+                setQuickNoteText('');
+                triggerFleeting('✏️', 500);
+              }
+            }}
+            className="w-full bg-transparent border-b border-ink outline-none font-display text-lg pb-1"
+            placeholder="..."
+          />
+        </div>
+      </div>
+
       {/* Branding & Theme Toggle */}
       <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 flex gap-2 w-full max-w-[300px] justify-center">
         <button
@@ -516,55 +574,57 @@ export default function App() {
         </div>
       )}
 
-      {activeTab === 'FINANCE' && (
-        <SpentTab
-          monthTotal={monthTotal}
-          spendByDay={spendByDay}
-          expandedDays={expandedDays}
-          setExpandedDays={setExpandedDays}
-          onEdit={(id) => openModal(() => { setEditingSpendId(id); setIsSheetOpen(true); })}
-          onDelete={(id) => handleDeleteEntry(id, 'SPEND')}
-          monthlyBudget={monthlyBudget}
-        />
-      )}
+      <Suspense fallback={<div className="font-mono text-xs opacity-40 py-12 text-center">loading...</div>}>
+        {activeTab === 'FINANCE' && (
+          <SpentTab
+            monthTotal={monthTotal}
+            spendByDay={spendByDay}
+            expandedDays={expandedDays}
+            setExpandedDays={setExpandedDays}
+            onEdit={(id) => openModal(() => { setEditingSpendId(id); setIsSheetOpen(true); })}
+            onDelete={(id) => handleDeleteEntry(id, 'SPEND')}
+            monthlyBudget={monthlyBudget}
+          />
+        )}
 
-      {activeTab === 'CHRONICLE' && (
-        <ChronicleTab
-          sortedFriends={sortedFriends}
-          debtTransactions={debtTransactions}
-          sortType={sortType}
-          getFriendBalance={getFriendBalance}
-          onSortCycle={handleSortCycle}
-          viewState={viewState}
-          onViewDetail={(name) => openModal(() => setViewState({ type: 'DETAIL', id: name }))}
-          onBack={() => setViewState({ type: 'LIST' })}
-          onSettle={handleSettle}
-          onDelete={(id) => handleDeleteEntry(id, 'DEBT')}
-          onEdit={(id) => openModal(() => { setEditingDebtId(id); setIsSheetOpen(true); })}
-          spendEntries={spendEntries}
-          customTags={customTags}
-        />
-      )}
+        {activeTab === 'CHRONICLE' && (
+          <ChronicleTab
+            sortedFriends={sortedFriends}
+            debtTransactions={debtTransactions}
+            sortType={sortType}
+            getFriendBalance={getFriendBalance}
+            onSortCycle={handleSortCycle}
+            viewState={viewState}
+            onViewDetail={(name) => openModal(() => setViewState({ type: 'DETAIL', id: name }))}
+            onBack={() => setViewState({ type: 'LIST' })}
+            onSettle={handleSettle}
+            onDelete={(id) => handleDeleteEntry(id, 'DEBT')}
+            onEdit={(id) => openModal(() => { setEditingDebtId(id); setIsSheetOpen(true); })}
+            spendEntries={spendEntries}
+            customTags={customTags}
+          />
+        )}
 
-      {activeTab === 'FOCUS' && (
-        <FocusTab
-          studySessions={studySessions}
-          runningSession={runningSession}
-          dailyStudyGoalMin={dailyStudyGoalMin}
-          customSubjects={customSubjects}
-          onStart={handleStartSession}
-          onPause={handlePauseSession}
-          onResume={handleResumeSession}
-          onStop={handleStopSession}
-          onDiscard={handleDiscardSession}
-          onIncrementDistraction={incrementDistraction}
-          onUpdateRunning={updateRunning}
-          onEditSession={handleEditSession}
-          onDeleteSession={handleDeleteSession}
-          expandedDays={expandedDays}
-          setExpandedDays={setExpandedDays}
-        />
-      )}
+        {activeTab === 'FOCUS' && (
+          <FocusTab
+            studySessions={studySessions}
+            runningSession={runningSession}
+            dailyStudyGoalMin={dailyStudyGoalMin}
+            customSubjects={customSubjects}
+            onStart={handleStartSession}
+            onPause={handlePauseSession}
+            onResume={handleResumeSession}
+            onStop={handleStopSession}
+            onDiscard={handleDiscardSession}
+            onIncrementDistraction={incrementDistraction}
+            onUpdateRunning={updateRunning}
+            onEditSession={handleEditSession}
+            onDeleteSession={handleDeleteSession}
+            expandedDays={expandedDays}
+            setExpandedDays={setExpandedDays}
+          />
+        )}
+      </Suspense>
 
       {/* FAB */}
       <button
@@ -592,93 +652,83 @@ export default function App() {
       </div>
 
       {/* Sheet */}
-      <AnimatePresence>
-        {isSheetOpen && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={handleCloseModal} className="fixed inset-0 bg-ink/10 z-40 backdrop-blur-[2px]" />
-            <motion.div
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              className="fixed bottom-0 left-0 right-0 z-50 bg-bg border-t border-ink max-w-lg mx-auto"
-            >
-              <div className="ascii-torn bg-ink text-bg py-1 text-center">^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/</div>
-              {activeTab === 'FINANCE' ? (
-                <SpendEntryForm
-                  initialData={editingSpendId ? spendEntries.find(e => e.id === editingSpendId) : undefined}
-                  friends={friends}
-                  customTags={customTags}
-                  onSubmit={handleAddSpend}
-                  onClose={handleCloseModal}
-                />
-              ) : activeTab === 'FOCUS' ? (
-                <StudySessionForm
-                  initialData={editingStudyId ? studySessions.find(s => s.id === editingStudyId) : undefined}
-                  customSubjects={customSubjects}
-                  onSubmit={async (data) => {
-                    if (editingStudyId) {
-                      await handleUpdateSession(editingStudyId, data);
-                    } else {
-                      pushToStudyUndo();
-                      const id = crypto.randomUUID();
-                      const { ref, set } = await import('firebase/database');
-                      const { db } = await import('./lib/firebase');
-                      const newSession: StudySession = { id, ...data } as StudySession;
-                      const clean: any = { ...newSession };
-                      Object.keys(clean).forEach(k => clean[k] === undefined && delete clean[k]);
-                      await set(ref(db, `users/${user.uid}/studySessions/${id}`), clean);
-                      handleCloseModal();
-                      triggerFleeting(KAOMOJI.CONFIRM_2, 500);
-                    }
-                  }}
-                  onClose={handleCloseModal}
-                />
-              ) : (
-                <DebtEntryForm
-                  initialData={editingDebtId ? debtTransactions.find(t => t.id === editingDebtId) : undefined}
-                  friends={friends}
-                  onSubmit={handleAddDebt}
-                  onClose={handleCloseModal}
-                />
-              )}
-            </motion.div>
-          </>
+      <div className={`fixed inset-0 z-40 transition-opacity duration-300 ${isSheetOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <div onClick={handleCloseModal} className="absolute inset-0 bg-ink/10 backdrop-blur-[2px]" />
+      </div>
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-50 bg-bg border-t border-ink max-w-lg mx-auto transition-transform duration-300 ease-out ${isSheetOpen ? 'translate-y-0' : 'translate-y-full'}`}
+      >
+        <div className="ascii-torn bg-ink text-bg py-1 text-center">^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/</div>
+        {activeTab === 'FINANCE' ? (
+          <SpendEntryForm
+            initialData={editingSpendId ? spendEntries.find(e => e.id === editingSpendId) : undefined}
+            friends={friends}
+            customTags={customTags}
+            onSubmit={handleAddSpend}
+            onClose={handleCloseModal}
+          />
+        ) : activeTab === 'FOCUS' ? (
+          <StudySessionForm
+            initialData={editingStudyId ? studySessions.find(s => s.id === editingStudyId) : undefined}
+            customSubjects={customSubjects}
+            onSubmit={async (data) => {
+              if (editingStudyId) {
+                await handleUpdateSession(editingStudyId, data);
+              } else {
+                pushToStudyUndo();
+                const id = crypto.randomUUID();
+                const { ref, set } = await import('firebase/database');
+                const { db } = await import('./lib/firebase');
+                const newSession: StudySession = { id, ...data } as StudySession;
+                const clean: any = { ...newSession };
+                Object.keys(clean).forEach(k => clean[k] === undefined && delete clean[k]);
+                await set(ref(db, `users/${user.uid}/studySessions/${id}`), clean);
+                handleCloseModal();
+                triggerFleeting(KAOMOJI.CONFIRM_2, 500);
+              }
+            }}
+            onClose={handleCloseModal}
+          />
+        ) : (
+          <DebtEntryForm
+            initialData={editingDebtId ? debtTransactions.find(t => t.id === editingDebtId) : undefined}
+            friends={friends}
+            onSubmit={handleAddDebt}
+            onClose={handleCloseModal}
+          />
         )}
-      </AnimatePresence>
+      </div>
 
       {/* Undo toast */}
-      <AnimatePresence>
-        {showUndoToast && undoStack.length > 0 && (
-          <motion.div
-            initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }}
-            className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-ink text-bg border-2 border-bg shadow-[8px_8px_0px_0px_var(--ink)] flex items-center gap-4"
-          >
-            <span className="text-xs font-mono font-bold tracking-widest uppercase">Action Saved</span>
-            <button onClick={handleUndo} className="bg-bg text-ink px-3 py-1 text-[10px] font-mono font-bold hover:invert transition-colors">UNDO</button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div
+        className={`fixed bottom-32 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-ink text-bg border-2 border-bg shadow-[8px_8px_0px_0px_var(--ink)] flex items-center gap-4 transition-all duration-300 ${showUndoToast && undoStack.length > 0 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12 pointer-events-none'}`}
+      >
+        <span className="text-xs font-mono font-bold tracking-widest uppercase">Action Saved</span>
+        <button onClick={handleUndo} className="bg-bg text-ink px-3 py-1 text-[10px] font-mono font-bold hover:invert transition-colors">UNDO</button>
+      </div>
 
       {/* Fleeting kaomoji */}
-      <AnimatePresence>
-        {fleetingKaomoji && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="fixed inset-0 pointer-events-none flex items-center justify-center z-[60]">
-            <div className="bg-bg border border-ink p-4 text-2xl">{fleetingKaomoji}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div className={`fixed inset-0 pointer-events-none flex items-center justify-center z-[60] transition-all duration-300 ${fleetingKaomoji ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+        <div className="bg-bg border border-ink p-4 text-2xl">{fleetingKaomoji || KAOMOJI.LOAD}</div>
+      </div>
 
-      <SidebarConfig
-        isOpen={isSidebarOpen}
-        onClose={handleCloseModal}
-        monthlyBudget={monthlyBudget}
-        customTags={customTags}
-        updatePreferences={updatePreferences}
-        gridStyle={gridStyle}
-        setGridStyle={(v: 'lines' | 'dots') => { setGridStyle(v); localStorage.setItem('calc_grid', v); }}
-        dailyStudyGoalMin={dailyStudyGoalMin}
-        customSubjects={customSubjects}
-        updateStudyPreferences={updateStudyPreferences}
-        onExport={handleExportData}
-      />
+      <Suspense fallback={null}>
+        {isSidebarOpen && (
+          <SidebarConfig
+            isOpen={isSidebarOpen}
+            onClose={handleCloseModal}
+            monthlyBudget={monthlyBudget}
+            customTags={customTags}
+            updatePreferences={updatePreferences}
+            gridStyle={gridStyle}
+            setGridStyle={(v: 'lines' | 'dots') => { setGridStyle(v); localStorage.setItem('calc_grid', v); }}
+            dailyStudyGoalMin={dailyStudyGoalMin}
+            customSubjects={customSubjects}
+            updateStudyPreferences={updateStudyPreferences}
+            onExport={handleExportData}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

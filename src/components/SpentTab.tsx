@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useMemo, memo } from 'react';
+
 import { SpendEntry } from '../types';
 import { getSparkline } from '../lib/sparkline';
 
@@ -21,7 +21,7 @@ interface SpentTabProps {
 
 const KAOMOJI = { EMPTY: '(´• ω •`)ノ' };
 
-export function SpentTab({ monthTotal, spendByDay, expandedDays, setExpandedDays, onEdit, onDelete, monthlyBudget }: SpentTabProps) {
+export const SpentTab = memo(function SpentTab({ monthTotal, spendByDay, expandedDays, setExpandedDays, onEdit, onDelete, monthlyBudget }: SpentTabProps) {
   const [showArchive, setShowArchive] = useState(false);
 
   // Sparkline for last 7 days with data
@@ -145,35 +145,26 @@ export function SpentTab({ monthTotal, spendByDay, expandedDays, setExpandedDays
                 <div className="flex-grow border-b border-dotted border-ink opacity-20 mx-4 group-hover:opacity-40 transition-opacity" />
                 <span className="font-mono font-bold">{dayTotal}</span>
               </div>
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden pl-4 space-y-2"
+              <div className={`overflow-hidden pl-4 space-y-2 transition-all duration-300 ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                {entries.map(e => (
+                  <div
+                    key={e.id}
+                    className="flex justify-between items-baseline text-xs group pr-2 cursor-pointer active:opacity-50"
+                    onClick={() => onEdit(e.id)}
+                    onContextMenu={(ev) => { ev.preventDefault(); onDelete(e.id); }}
                   >
-                    {entries.map(e => (
-                      <div
-                        key={e.id}
-                        className="flex justify-between items-baseline text-xs group pr-2 cursor-pointer active:opacity-50"
-                        onClick={() => onEdit(e.id)}
-                        onContextMenu={(ev) => { ev.preventDefault(); onDelete(e.id); }}
-                      >
-                        <div className="flex items-baseline gap-2">
-                          <span className="font-sans">{e.note}</span>
-                          {e.tag && <span className="opacity-40 text-[10px]">[{e.tag}]</span>}
-                        </div>
-                        <div className="flex items-baseline gap-2">
-                          <span className={`font-mono ${e.type === 'EARNED' ? 'opacity-40 font-normal' : 'font-bold'}`}>
-                            {e.type === 'EARNED' ? '-' : '+'}{e.amount}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-sans">{e.note}</span>
+                      {e.tag && <span className="opacity-40 text-[10px]">[{e.tag}]</span>}
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className={`font-mono ${e.type === 'EARNED' ? 'opacity-40 font-normal' : 'font-bold'}`}>
+                        {e.type === 'EARNED' ? '-' : '+'}{e.amount}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           );
         })}
@@ -189,31 +180,27 @@ export function SpentTab({ monthTotal, spendByDay, expandedDays, setExpandedDays
             [ {showArchive ? 'HIDE ARCHIVE' : 'SHOW ARCHIVE'} ]
           </button>
           
-          <AnimatePresence>
-            {showArchive && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden space-y-6 mt-6">
-                {archiveReceipts.map(([month, data]) => (
-                  <div key={month} className="p-4 border-2 border-ink border-dashed font-mono text-xs bg-bg">
-                    <div className="text-center font-bold mb-4 tracking-widest border-b border-ink border-dotted pb-2">=== {month} ===</div>
-                    <div className="space-y-2 mb-4">
-                      {Object.entries(data.tags).sort((a, b) => (b[1] as number) - (a[1] as number)).map(([tag, amt]) => (
-                        <div key={tag} className="flex justify-between">
-                          <span>{tag.padEnd(15, '.')}</span>
-                          <span>{amt}</span>
-                        </div>
-                      ))}
+          <div className={`overflow-hidden space-y-6 transition-all duration-300 ${showArchive ? 'max-h-[5000px] opacity-100 mt-6' : 'max-h-0 opacity-0'}`}>
+            {archiveReceipts.map(([month, data]) => (
+              <div key={month} className="p-4 border-2 border-ink border-dashed font-mono text-xs bg-bg">
+                <div className="text-center font-bold mb-4 tracking-widest border-b border-ink border-dotted pb-2">=== {month} ===</div>
+                <div className="space-y-2 mb-4">
+                  {Object.entries(data.tags).sort((a, b) => (b[1] as number) - (a[1] as number)).map(([tag, amt]) => (
+                    <div key={tag} className="flex justify-between">
+                      <span>{tag.padEnd(15, '.')}</span>
+                      <span>{amt}</span>
                     </div>
-                    <div className="flex justify-between font-bold border-t border-ink border-dotted pt-2">
-                      <span>TOTAL</span>
-                      <span>{data.total}</span>
-                    </div>
-                  </div>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                  ))}
+                </div>
+                <div className="flex justify-between font-bold border-t border-ink border-dotted pt-2">
+                  <span>TOTAL</span>
+                  <span>{data.total}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
   );
-}
+});
