@@ -656,17 +656,19 @@ export default function App() {
         <div onClick={handleCloseModal} className="absolute inset-0 bg-ink/10 backdrop-blur-[2px]" />
       </div>
       <div
-        className={`fixed bottom-0 left-0 right-0 z-50 bg-bg border-t border-ink max-w-lg mx-auto transition-transform duration-300 ease-out ${isSheetOpen ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`fixed bottom-0 left-0 right-0 z-50 bg-bg border-t border-ink max-w-lg mx-auto transition-transform duration-300 ease-out max-h-[85dvh] flex flex-col ${isSheetOpen ? 'translate-y-0' : 'translate-y-full'}`}
       >
-        <div className="ascii-torn bg-ink text-bg py-1 text-center">^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/</div>
-        {activeTab === 'FINANCE' ? (
-          <SpendEntryForm
-            initialData={editingSpendId ? spendEntries.find(e => e.id === editingSpendId) : undefined}
-            friends={friends}
-            customTags={customTags}
-            onSubmit={handleAddSpend}
-            onClose={handleCloseModal}
-          />
+        <div className="ascii-torn bg-ink text-bg py-1 text-center shrink-0">^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/</div>
+        <div className="overflow-y-auto flex-1 overscroll-contain">
+          {activeTab === 'FINANCE' ? (
+            <SpendEntryForm
+              initialData={editingSpendId ? spendEntries.find(e => e.id === editingSpendId) : undefined}
+              friends={friends}
+              customTags={customTags}
+              onSubmit={handleAddSpend}
+              onClose={handleCloseModal}
+              isOpen={isSheetOpen}
+            />
         ) : activeTab === 'FOCUS' ? (
           <StudySessionForm
             initialData={editingStudyId ? studySessions.find(s => s.id === editingStudyId) : undefined}
@@ -688,6 +690,7 @@ export default function App() {
               }
             }}
             onClose={handleCloseModal}
+            isOpen={isSheetOpen}
           />
         ) : (
           <DebtEntryForm
@@ -695,8 +698,10 @@ export default function App() {
             friends={friends}
             onSubmit={handleAddDebt}
             onClose={handleCloseModal}
+            isOpen={isSheetOpen}
           />
         )}
+        </div>
       </div>
 
       {/* Undo toast */}
@@ -733,7 +738,7 @@ export default function App() {
   );
 }
 
-function SpendEntryForm({ initialData, friends, customTags, onSubmit, onClose }: { initialData?: SpendEntry; friends: Friend[]; customTags: string[]; onSubmit: (t: Omit<SpendEntry, 'id'>, friendName?: string) => void; onClose: () => void }) {
+function SpendEntryForm({ initialData, friends, customTags, onSubmit, onClose, isOpen }: { initialData?: SpendEntry; friends: Friend[]; customTags: string[]; onSubmit: (t: Omit<SpendEntry, 'id'>, friendName?: string) => void; onClose: () => void; isOpen?: boolean }) {
   const [amount, setAmount] = useState(initialData?.amount?.toString() || '');
   const [note, setNote] = useState(initialData?.note || '');
   const [tag, setTag] = useState(initialData?.tag || '');
@@ -742,8 +747,13 @@ function SpendEntryForm({ initialData, friends, customTags, onSubmit, onClose }:
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!initialData) inputRef.current?.focus();
-  }, [initialData]);
+    if (!initialData && isOpen) {
+      // Small delay allows the sheet transition to start before grabbing focus, 
+      // which makes the keyboard slide up smoother on Android.
+      const timer = setTimeout(() => inputRef.current?.focus(), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [initialData, isOpen]);
 
   const handle = (type: 'SPENT' | 'EARNED') => {
     const val = parseFloat(amount);
@@ -812,11 +822,19 @@ function SpendEntryForm({ initialData, friends, customTags, onSubmit, onClose }:
   );
 }
 
-function DebtEntryForm({ initialData, friends, onSubmit, onClose }: { initialData?: DebtTransaction; friends: Friend[]; onSubmit: (t: Omit<DebtTransaction, 'id' | 'date' | 'settled'>) => void; onClose: () => void }) {
+function DebtEntryForm({ initialData, friends, onSubmit, onClose, isOpen }: { initialData?: DebtTransaction; friends: Friend[]; onSubmit: (t: Omit<DebtTransaction, 'id' | 'date' | 'settled'>) => void; onClose: () => void; isOpen?: boolean }) {
   const [name, setName] = useState(initialData?.friendName || friends[0]?.name || '');
   const [direction, setDirection] = useState<Direction>(initialData?.direction || 'LENT');
   const [amountRaw, setAmountRaw] = useState(initialData?.amountRaw || '');
   const [note, setNote] = useState(initialData?.note || '');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!initialData && isOpen) {
+      const timer = setTimeout(() => inputRef.current?.focus(), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [initialData, isOpen]);
 
   const handle = () => {
     if (!name.trim()) return;
@@ -833,7 +851,7 @@ function DebtEntryForm({ initialData, friends, onSubmit, onClose }: { initialDat
       <div className="space-y-6">
         <div className="space-y-1">
           <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">FRIEND</div>
-          <input value={name} onChange={e => setName(e.target.value)} className="w-full border-b-2 border-ink bg-transparent outline-none py-2 text-3xl font-display font-bold uppercase" list="friends-list" placeholder="NAME" />
+          <input ref={inputRef} value={name} onChange={e => setName(e.target.value)} className="w-full border-b-2 border-ink bg-transparent outline-none py-2 text-3xl font-display font-bold uppercase" list="friends-list" placeholder="NAME" />
           <datalist id="friends-list">{friends.map(f => <option key={f.name} value={f.name} />)}</datalist>
         </div>
         <div className="space-y-4">
@@ -868,11 +886,13 @@ function StudySessionForm({
   customSubjects,
   onSubmit,
   onClose,
+  isOpen
 }: {
   initialData?: StudySession;
   customSubjects: string[];
   onSubmit: (data: Omit<StudySession, 'id'>) => void;
   onClose: () => void;
+  isOpen?: boolean;
 }) {
   const [subject, setSubject] = useState(initialData?.subject || '');
   const [name, setName] = useState(initialData?.name || '');
@@ -888,6 +908,14 @@ function StudySessionForm({
       .toString()
       .padStart(2, '0')}`
   );
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!initialData && isOpen) {
+      const timer = setTimeout(() => inputRef.current?.focus(), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [initialData, isOpen]);
 
   const handle = () => {
     const mins = parseFloat(durationMin);
@@ -929,6 +957,7 @@ function StudySessionForm({
           <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">DURATION (MIN)</div>
           <div className="flex items-baseline border-b-4 border-ink pb-1">
             <input
+              ref={inputRef}
               type="number"
               inputMode="decimal"
               value={durationMin}
