@@ -42,7 +42,7 @@ export function AnalyticsTab({ spendEntries, customTags }: AnalyticsTabProps) {
     return colors[index % colors.length];
   };
 
-  const sortedTags = Object.entries(data.tagTotals).sort((a, b) => b[1] - a[1]);
+  const sortedTags = (Object.entries(data.tagTotals) as [string, number][]).sort((a, b) => b[1] - a[1]);
 
   return (
     <div className="space-y-12 pb-12 font-sans">

@@ -30,13 +30,40 @@ export interface SpendEntry {
 
 export type SortType = 'NAME' | 'AMOUNT' | 'RECENT';
 
+export interface StudySession {
+  id: string;
+  subject: string;
+  name?: string;
+  note?: string;
+  startedAt: number;     // ms timestamp
+  endedAt: number;       // ms timestamp (0 if discarded shouldn't be stored; completed only)
+  durationMs: number;    // (endedAt - startedAt) - pausedMs
+  pausedMs: number;      // total paused duration
+  distractions: number;
+}
+
+export interface RunningSession {
+  id: string;
+  subject: string;
+  name?: string;
+  note?: string;
+  startedAt: number;
+  pausedAt?: number;     // if defined, currently paused (timestamp)
+  pausedMs: number;      // accumulated paused duration before current pause
+  distractions: number;
+}
+
 export interface AppState {
   debtTransactions: DebtTransaction[];
   spendEntries: SpendEntry[];
   friends: Friend[];
   sortType: SortType;
+  studySessions?: StudySession[];
+  runningSession?: RunningSession | null;
   preferences?: {
     monthlyBudget?: number;
     customTags?: string[];
+    dailyStudyGoalMin?: number;
+    customSubjects?: string[];
   };
 }

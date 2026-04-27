@@ -2,12 +2,14 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from './hooks/useAuth';
 import { useFinanceData } from './hooks/useFinanceData';
+import { useStudyData } from './hooks/useStudyData';
 import { LoginScreen } from './components/LoginScreen';
 import { SpentTab } from './components/SpentTab';
 import { ChronicleTab } from './components/ChronicleTab';
 import { AnalyticsTab } from './components/AnalyticsTab';
+import { FocusTab, TodayPill } from './components/FocusTab';
 import { SidebarConfig } from './components/SidebarConfig';
-import { DebtTransaction, SpendEntry, Friend, SortType, Direction, AppState } from './types';
+import { DebtTransaction, SpendEntry, Friend, SortType, Direction, AppState, StudySession, RunningSession } from './types';
 
 const KAOMOJI = {
   LOAD: '(=^･ω･^=)',
@@ -45,12 +47,30 @@ export default function App() {
     updatePreferences,
   } = useFinanceData(user?.uid ?? null);
 
-  const [activeTab, setActiveTab] = useState<'SPENT' | 'CHRONICLE' | 'ANALYTICS'>('SPENT');
+  const {
+    studySessions,
+    runningSession,
+    dailyStudyGoalMin,
+    customSubjects,
+    startSession,
+    pauseSession,
+    resumeSession,
+    stopSession,
+    discardSession,
+    updateRunning,
+    incrementDistraction,
+    updateSession,
+    deleteSession,
+    updateStudyPreferences,
+  } = useStudyData(user?.uid ?? null);
+
+  const [activeTab, setActiveTab] = useState<'SPENT' | 'CHRONICLE' | 'ANALYTICS' | 'FOCUS'>('SPENT');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [viewState, setViewState] = useState<{ type: 'LIST' | 'DETAIL'; id?: string }>({ type: 'LIST' });
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingSpendId, setEditingSpendId] = useState<string | null>(null);
   const [editingDebtId, setEditingDebtId] = useState<string | null>(null);
+  const [editingStudyId, setEditingStudyId] = useState<string | null>(null);
   const [fleetingKaomoji, setFleetingKaomoji] = useState<string | null>(null);
   const [undoStack, setUndoStack] = useState<AppState[]>([]);
   const [showUndoToast, setShowUndoToast] = useState(false);
@@ -82,6 +102,7 @@ export default function App() {
       setViewState({ type: 'LIST' });
       setEditingSpendId(null);
       setEditingDebtId(null);
+      setEditingStudyId(null);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -101,6 +122,7 @@ export default function App() {
       setViewState({ type: 'LIST' });
       setEditingSpendId(null);
       setEditingDebtId(null);
+      setEditingStudyId(null);
     }
   };
 
@@ -148,7 +170,15 @@ export default function App() {
 
   // Undo system (local in-memory, writes back to Firebase on undo)
   const pushToUndo = () => {
-    const currentState: AppState = { debtTransactions, spendEntries, friends, sortType };
+    const currentState: AppState = {
+      debtTransactions,
+      spendEntries,
+      friends,
+      sortType,
+      studySessions,
+      runningSession,
+      preferences: { monthlyBudget, customTags, dailyStudyGoalMin, customSubjects },
+    };
     setUndoStack(prev => [currentState, ...prev].slice(0, 20));
     setShowUndoToast(true);
     setTimeout(() => setShowUndoToast(false), 4000);
@@ -160,7 +190,15 @@ export default function App() {
     const { ref, set } = await import('firebase/database');
     const { db } = await import('./lib/firebase');
     const userRef = ref(db, `users/${user.uid}`);
-    const firebaseData: Record<string, any> = { preferences: { sortType: lastState.sortType } };
+    const firebaseData: Record<string, any> = {
+      preferences: {
+        sortType: lastState.sortType,
+        monthlyBudget: lastState.preferences?.monthlyBudget ?? monthlyBudget,
+        customTags: lastState.preferences?.customTags ?? customTags,
+        dailyStudyGoalMin: lastState.preferences?.dailyStudyGoalMin ?? dailyStudyGoalMin,
+        customSubjects: lastState.preferences?.customSubjects ?? customSubjects,
+      },
+    };
 
     const entries: Record<string, SpendEntry> = {};
     lastState.spendEntries.forEach(e => { entries[e.id] = e; });
@@ -173,6 +211,15 @@ export default function App() {
     const fr: Record<string, Friend> = {};
     lastState.friends.forEach(f => { fr[f.name.replace(/[.#$/\[\]]/g, '_')] = f; });
     firebaseData.friends = fr;
+
+    if (lastState.studySessions && lastState.studySessions.length > 0) {
+      const ss: Record<string, StudySession> = {};
+      lastState.studySessions.forEach(s => { ss[s.id] = s; });
+      firebaseData.studySessions = ss;
+    }
+    if (lastState.runningSession) {
+      firebaseData.runningSession = lastState.runningSession;
+    }
 
     await set(userRef, firebaseData);
     setUndoStack(rest);
@@ -250,7 +297,94 @@ export default function App() {
     updateSortType(next);
   };
 
-  const TabButton = ({ label, active }: { label: 'SPENT' | 'CHRONICLE' | 'ANALYTICS'; active: boolean }) => (
+  // ==== Study handlers ====
+  const handleStartSession = async (subject: string, name?: string, note?: string) => {
+    pushToUndo();
+    await startSession(subject, name, note);
+    triggerFleeting('ᕙ(`▿´)ᕗ', 600);
+  };
+
+  const handlePauseSession = async () => {
+    pushToUndo();
+    await pauseSession();
+    triggerFleeting('( ´_ゝ`)', 400);
+  };
+
+  const handleResumeSession = async () => {
+    pushToUndo();
+    await resumeSession();
+    triggerFleeting('ᕙ(`▿´)ᕗ', 400);
+  };
+
+  const handleStopSession = async () => {
+    pushToUndo();
+    await stopSession();
+    triggerFleeting(KAOMOJI.SETTLE, 800);
+  };
+
+  const handleDiscardSession = async () => {
+    if (!runningSession) return;
+    if (confirm(`DISCARD SESSION? ${KAOMOJI.DELETE}`)) {
+      pushToUndo();
+      await discardSession();
+      triggerFleeting(KAOMOJI.DELETE, 600);
+    }
+  };
+
+  const handleDeleteSession = async (id: string) => {
+    if (confirm(`DELETE SESSION? ${KAOMOJI.DELETE}`)) {
+      pushToUndo();
+      await deleteSession(id);
+    }
+  };
+
+  const handleEditSession = (id: string) => {
+    openModal(() => {
+      setEditingStudyId(id);
+      setIsSheetOpen(true);
+    });
+  };
+
+  const handleUpdateSession = async (id: string, patch: Partial<StudySession>) => {
+    pushToUndo();
+    await updateSession(id, patch);
+    handleCloseModal();
+    triggerFleeting(KAOMOJI.CONFIRM_2, 500);
+  };
+
+  // ==== Hotkeys (Space=start/pause, Enter=stop) — only on FOCUS tab and when no input focused ====
+  useEffect(() => {
+    const isTextInput = (el: EventTarget | null) => {
+      if (!el || !(el instanceof HTMLElement)) return false;
+      const tag = el.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+    };
+    const handler = (e: KeyboardEvent) => {
+      if (activeTab !== 'FOCUS') return;
+      if (isSheetOpen || isSidebarOpen) return;
+      if (isTextInput(e.target)) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (!runningSession) {
+          handleStartSession('untitled');
+        } else if (runningSession.pausedAt) {
+          handleResumeSession();
+        } else {
+          handlePauseSession();
+        }
+      } else if (e.code === 'Enter') {
+        if (runningSession) {
+          e.preventDefault();
+          handleStopSession();
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, runningSession, isSheetOpen, isSidebarOpen]);
+
+  const TabButton = ({ label, active }: { label: 'SPENT' | 'CHRONICLE' | 'ANALYTICS' | 'FOCUS'; active: boolean }) => (
     <button
       onClick={() => setActiveTab(label)}
       className={`flex-1 py-5 text-[10px] tracking-widest font-display font-semibold transition-all ${active ? 'underline underline-offset-8 scale-110' : 'opacity-40 hover:opacity-100'}`}
@@ -318,6 +452,17 @@ export default function App() {
         </button>
       </div>
 
+      {/* Top-right Today pill (FOCUS tab only) */}
+      {activeTab === 'FOCUS' && (
+        <div className="fixed top-4 right-4 z-30">
+          <TodayPill
+            studySessions={studySessions}
+            runningSession={runningSession}
+            goalMin={dailyStudyGoalMin}
+          />
+        </div>
+      )}
+
       {activeTab === 'SPENT' && (
         <SpentTab
           monthTotal={monthTotal}
@@ -350,6 +495,26 @@ export default function App() {
         />
       )}
 
+      {activeTab === 'FOCUS' && (
+        <FocusTab
+          studySessions={studySessions}
+          runningSession={runningSession}
+          dailyStudyGoalMin={dailyStudyGoalMin}
+          customSubjects={customSubjects}
+          onStart={handleStartSession}
+          onPause={handlePauseSession}
+          onResume={handleResumeSession}
+          onStop={handleStopSession}
+          onDiscard={handleDiscardSession}
+          onIncrementDistraction={incrementDistraction}
+          onUpdateRunning={updateRunning}
+          onEditSession={handleEditSession}
+          onDeleteSession={handleDeleteSession}
+          expandedDays={expandedDays}
+          setExpandedDays={setExpandedDays}
+        />
+      )}
+
       {/* FAB */}
       <button
         onClick={() => openModal(() => setIsSheetOpen(true))}
@@ -369,8 +534,9 @@ export default function App() {
       )}
 
       {/* Tabs */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[85%] max-w-[400px] border border-ink/30 bg-bg/80 backdrop-blur-md rounded-xl flex z-40 overflow-hidden shadow-[0_8px_30px_rgba(43,0,212,0.1)]">
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-[460px] border border-ink/30 bg-bg/80 backdrop-blur-md rounded-xl flex z-40 overflow-hidden shadow-[0_8px_30px_rgba(43,0,212,0.1)]">
         <TabButton label="SPENT" active={activeTab === 'SPENT'} />
+        <TabButton label="FOCUS" active={activeTab === 'FOCUS'} />
         <TabButton label="ANALYTICS" active={activeTab === 'ANALYTICS'} />
         <TabButton label="CHRONICLE" active={activeTab === 'CHRONICLE'} />
       </div>
@@ -391,6 +557,28 @@ export default function App() {
                   friends={friends}
                   customTags={customTags}
                   onSubmit={handleAddSpend}
+                  onClose={handleCloseModal}
+                />
+              ) : activeTab === 'FOCUS' ? (
+                <StudySessionForm
+                  initialData={editingStudyId ? studySessions.find(s => s.id === editingStudyId) : undefined}
+                  customSubjects={customSubjects}
+                  onSubmit={async (data) => {
+                    if (editingStudyId) {
+                      await handleUpdateSession(editingStudyId, data);
+                    } else {
+                      pushToUndo();
+                      const id = crypto.randomUUID();
+                      const { ref, set } = await import('firebase/database');
+                      const { db } = await import('./lib/firebase');
+                      const newSession: StudySession = { id, ...data } as StudySession;
+                      const clean: any = { ...newSession };
+                      Object.keys(clean).forEach(k => clean[k] === undefined && delete clean[k]);
+                      await set(ref(db, `users/${user.uid}/studySessions/${id}`), clean);
+                      handleCloseModal();
+                      triggerFleeting(KAOMOJI.CONFIRM_2, 500);
+                    }
+                  }}
                   onClose={handleCloseModal}
                 />
               ) : (
@@ -436,6 +624,9 @@ export default function App() {
         updatePreferences={updatePreferences}
         gridStyle={gridStyle}
         setGridStyle={(v: 'lines' | 'dots') => { setGridStyle(v); localStorage.setItem('calc_grid', v); }}
+        dailyStudyGoalMin={dailyStudyGoalMin}
+        customSubjects={customSubjects}
+        updateStudyPreferences={updateStudyPreferences}
       />
     </div>
   );
@@ -566,6 +757,155 @@ function DebtEntryForm({ initialData, friends, onSubmit, onClose }: { initialDat
       </div>
       <button onClick={handle} className="w-full bg-ink text-bg py-5 font-display text-xl font-bold border-2 border-ink tracking-widest uppercase active:scale-[0.98] transition-transform">
         CONFIRM ENTRY
+      </button>
+    </div>
+  );
+}
+
+function StudySessionForm({
+  initialData,
+  customSubjects,
+  onSubmit,
+  onClose,
+}: {
+  initialData?: StudySession;
+  customSubjects: string[];
+  onSubmit: (data: Omit<StudySession, 'id'>) => void;
+  onClose: () => void;
+}) {
+  const [subject, setSubject] = useState(initialData?.subject || '');
+  const [name, setName] = useState(initialData?.name || '');
+  const [note, setNote] = useState(initialData?.note || '');
+  const [durationMin, setDurationMin] = useState(
+    initialData ? Math.round(initialData.durationMs / 60000).toString() : ''
+  );
+  const initialDateObj = new Date(initialData?.startedAt || Date.now());
+  const [date, setDate] = useState(initialDateObj.toISOString().split('T')[0]);
+  const [time, setTime] = useState(
+    `${initialDateObj.getHours().toString().padStart(2, '0')}:${initialDateObj
+      .getMinutes()
+      .toString()
+      .padStart(2, '0')}`
+  );
+
+  const handle = () => {
+    const mins = parseFloat(durationMin);
+    if (isNaN(mins) || mins <= 0) return;
+    if (!subject.trim()) return;
+    const [h, m] = time.split(':').map(Number);
+    const startDt = new Date(date);
+    startDt.setHours(h || 0, m || 0, 0, 0);
+    const startedAt = startDt.getTime();
+    const durationMs = Math.round(mins * 60000);
+    const endedAt = startedAt + durationMs;
+    onSubmit({
+      subject: subject.trim(),
+      name: name.trim() || undefined,
+      note: note.trim() || undefined,
+      startedAt,
+      endedAt,
+      durationMs,
+      pausedMs: initialData?.pausedMs ?? 0,
+      distractions: initialData?.distractions ?? 0,
+    });
+  };
+
+  return (
+    <div className="p-6 pb-10 space-y-8 font-sans">
+      <div className="flex justify-between items-center px-1">
+        <h3 className="text-[10px] font-mono font-bold tracking-[0.2em] opacity-40 uppercase">
+          {initialData ? 'Edit session' : 'Manual session'}
+        </h3>
+        <button
+          onClick={onClose}
+          className="text-[10px] font-mono font-bold underline opacity-60 active:opacity-100"
+        >
+          CANCEL
+        </button>
+      </div>
+      <div className="space-y-6">
+        <div className="space-y-1">
+          <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">DURATION (MIN)</div>
+          <div className="flex items-baseline border-b-4 border-ink pb-1">
+            <input
+              type="number"
+              inputMode="decimal"
+              value={durationMin}
+              onChange={e => setDurationMin(e.target.value)}
+              className="flex-1 bg-transparent outline-none text-7xl font-display font-black tracking-tighter"
+              placeholder="0"
+            />
+            <span className="text-3xl font-mono font-black opacity-10 ml-2">m</span>
+          </div>
+        </div>
+        <div className="space-y-1">
+          <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">SUBJECT</div>
+          <input
+            value={subject}
+            onChange={e => setSubject(e.target.value)}
+            className="w-full border-b border-ink bg-transparent outline-none py-2 text-lg font-display font-bold uppercase"
+            placeholder="..."
+          />
+          {customSubjects.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-2">
+              {customSubjects.map(s => (
+                <button
+                  key={s}
+                  onClick={() => setSubject(s)}
+                  className={`px-2 py-1 border border-ink text-xs font-mono transition-colors ${
+                    subject === s ? 'bg-ink text-bg' : 'bg-transparent text-ink'
+                  }`}
+                >
+                  [{s}]
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="space-y-1">
+          <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">NAME</div>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            className="w-full border-b border-ink bg-transparent outline-none py-3 text-lg font-sans"
+            placeholder="(optional)"
+          />
+        </div>
+        <div className="space-y-1">
+          <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">NOTE</div>
+          <input
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            className="w-full border-b border-ink bg-transparent outline-none py-3 text-base"
+            placeholder="(optional)"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-6">
+          <div className="space-y-1">
+            <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">DATE</div>
+            <input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              className="w-full border-b border-ink bg-transparent outline-none py-3 text-sm font-mono font-bold"
+            />
+          </div>
+          <div className="space-y-1">
+            <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">START TIME</div>
+            <input
+              type="time"
+              value={time}
+              onChange={e => setTime(e.target.value)}
+              className="w-full border-b border-ink bg-transparent outline-none py-3 text-sm font-mono font-bold"
+            />
+          </div>
+        </div>
+      </div>
+      <button
+        onClick={handle}
+        className="w-full bg-ink text-bg py-5 font-display text-xl font-bold border-2 border-ink tracking-widest uppercase active:scale-[0.98] transition-transform"
+      >
+        {initialData ? 'SAVE CHANGES' : 'LOG SESSION'}
       </button>
     </div>
   );
