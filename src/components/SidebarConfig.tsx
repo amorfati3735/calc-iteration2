@@ -12,6 +12,7 @@ interface SidebarConfigProps {
   dailyStudyGoalMin: number;
   customSubjects: string[];
   updateStudyPreferences: (prefs: { dailyStudyGoalMin?: number; customSubjects?: string[] }) => void;
+  onExport: () => void;
 }
 
 export function SidebarConfig({
@@ -25,6 +26,7 @@ export function SidebarConfig({
   dailyStudyGoalMin,
   customSubjects,
   updateStudyPreferences,
+  onExport,
 }: SidebarConfigProps) {
   const [budgetInput, setBudgetInput] = useState(monthlyBudget.toString());
   const [newTag, setNewTag] = useState('');
@@ -186,6 +188,15 @@ export function SidebarConfig({
                   DOTS
                 </button>
               </div>
+            </div>
+
+            <div className="border-t border-ink/30 pt-6 space-y-4 pb-12">
+              <button 
+                onClick={onExport}
+                className="w-full py-3 border-2 border-ink text-ink font-mono font-bold text-[10px] tracking-widest hover:bg-ink hover:text-bg transition-colors"
+              >
+                EXPORT ALL DATA (JSON)
+              </button>
             </div>
           </motion.div>
         </>

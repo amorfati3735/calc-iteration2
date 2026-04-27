@@ -289,7 +289,24 @@ export function FocusTab({
                   className="flex-1 bg-transparent border-b border-ink outline-none font-display font-bold uppercase text-base"
                 />
               </div>
-              <div className="flex items-baseline gap-2">
+              {customSubjects.length > 0 && (
+                <div className="flex flex-wrap gap-2 pl-[58px]">
+                  {customSubjects.map(s => (
+                    <button
+                      key={s}
+                      onClick={() => onUpdateRunning({ subject: s })}
+                      className={`px-2 py-1 border border-ink text-[10px] font-mono transition-colors ${
+                        runningSession.subject === s
+                          ? 'bg-ink text-bg'
+                          : 'bg-transparent text-ink'
+                      }`}
+                    >
+                      [{s}]
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-baseline gap-2 pt-1">
                 <span className="text-[10px] font-mono opacity-40 tracking-widest">
                   NAME
                 </span>

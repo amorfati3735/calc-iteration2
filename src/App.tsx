@@ -64,7 +64,13 @@ export default function App() {
     updateStudyPreferences,
   } = useStudyData(user?.uid ?? null);
 
-  const [activeTab, setActiveTab] = useState<'SPENT' | 'CHRONICLE' | 'ANALYTICS' | 'FOCUS'>('SPENT');
+  const [activeTab, setActiveTab] = useState<'FINANCE' | 'CHRONICLE' | 'FOCUS'>('FINANCE');
+
+  useEffect(() => {
+    if (window.innerWidth > 768) {
+      setActiveTab('FOCUS');
+    }
+  }, []);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [viewState, setViewState] = useState<{ type: 'LIST' | 'DETAIL'; id?: string }>({ type: 'LIST' });
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -72,7 +78,8 @@ export default function App() {
   const [editingDebtId, setEditingDebtId] = useState<string | null>(null);
   const [editingStudyId, setEditingStudyId] = useState<string | null>(null);
   const [fleetingKaomoji, setFleetingKaomoji] = useState<string | null>(null);
-  const [undoStack, setUndoStack] = useState<AppState[]>([]);
+  type UndoAction = { type: 'FINANCE' | 'STUDY'; state: AppState };
+  const [undoStack, setUndoStack] = useState<UndoAction[]>([]);
   const [showUndoToast, setShowUndoToast] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return (localStorage.getItem('calc_theme') as 'light' | 'dark') || 'light';
@@ -127,6 +134,34 @@ export default function App() {
   };
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleCloseModal();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const handleExportData = () => {
+    const data = {
+      spendEntries,
+      debtTransactions,
+      friends,
+      studySessions,
+      runningSession,
+      preferences: { monthlyBudget, customTags, dailyStudyGoalMin, customSubjects }
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `calc_export_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     localStorage.setItem('calc_theme', theme);
   }, [theme]);
@@ -168,60 +203,71 @@ export default function App() {
     return list;
   }, [friends, debtTransactions, sortType]);
 
-  // Undo system (local in-memory, writes back to Firebase on undo)
-  const pushToUndo = () => {
+  const pushToFinanceUndo = () => {
     const currentState: AppState = {
-      debtTransactions,
-      spendEntries,
-      friends,
-      sortType,
-      studySessions,
-      runningSession,
+      debtTransactions, spendEntries, friends, sortType, studySessions, runningSession,
       preferences: { monthlyBudget, customTags, dailyStudyGoalMin, customSubjects },
     };
-    setUndoStack(prev => [currentState, ...prev].slice(0, 20));
+    setUndoStack(prev => [{ type: 'FINANCE', state: currentState }, ...prev].slice(0, 50));
+    setShowUndoToast(true);
+    setTimeout(() => setShowUndoToast(false), 4000);
+  };
+
+  const pushToStudyUndo = () => {
+    const currentState: AppState = {
+      debtTransactions, spendEntries, friends, sortType, studySessions, runningSession,
+      preferences: { monthlyBudget, customTags, dailyStudyGoalMin, customSubjects },
+    };
+    setUndoStack(prev => [{ type: 'STUDY', state: currentState }, ...prev].slice(0, 50));
     setShowUndoToast(true);
     setTimeout(() => setShowUndoToast(false), 4000);
   };
 
   const handleUndo = async () => {
     if (undoStack.length === 0 || !user) return;
-    const [lastState, ...rest] = undoStack;
-    const { ref, set } = await import('firebase/database');
+    const [action, ...rest] = undoStack;
+    const lastState = action.state;
+    const { ref, update } = await import('firebase/database');
     const { db } = await import('./lib/firebase');
     const userRef = ref(db, `users/${user.uid}`);
-    const firebaseData: Record<string, any> = {
-      preferences: {
+
+    if (action.type === 'FINANCE') {
+      const firebaseData: Record<string, any> = {};
+      const entries: Record<string, SpendEntry> = {};
+      lastState.spendEntries.forEach(e => { entries[e.id] = e; });
+      firebaseData.spendEntries = entries;
+
+      const txs: Record<string, DebtTransaction> = {};
+      lastState.debtTransactions.forEach(t => { txs[t.id] = t; });
+      firebaseData.debtTransactions = txs;
+
+      const fr: Record<string, Friend> = {};
+      lastState.friends.forEach(f => { fr[f.name.replace(/[.#$/\[\]]/g, '_')] = f; });
+      firebaseData.friends = fr;
+
+      await update(userRef, firebaseData);
+      await update(ref(db, `users/${user.uid}/preferences`), {
         sortType: lastState.sortType,
         monthlyBudget: lastState.preferences?.monthlyBudget ?? monthlyBudget,
         customTags: lastState.preferences?.customTags ?? customTags,
+      });
+    } else {
+      const firebaseData: Record<string, any> = {};
+      const ss: Record<string, StudySession> = {};
+      if (lastState.studySessions && lastState.studySessions.length > 0) {
+        lastState.studySessions.forEach(s => { ss[s.id] = s; });
+      }
+      firebaseData.studySessions = ss;
+      
+      firebaseData.runningSession = lastState.runningSession || null;
+
+      await update(userRef, firebaseData);
+      await update(ref(db, `users/${user.uid}/preferences`), {
         dailyStudyGoalMin: lastState.preferences?.dailyStudyGoalMin ?? dailyStudyGoalMin,
         customSubjects: lastState.preferences?.customSubjects ?? customSubjects,
-      },
-    };
-
-    const entries: Record<string, SpendEntry> = {};
-    lastState.spendEntries.forEach(e => { entries[e.id] = e; });
-    firebaseData.spendEntries = entries;
-
-    const txs: Record<string, DebtTransaction> = {};
-    lastState.debtTransactions.forEach(t => { txs[t.id] = t; });
-    firebaseData.debtTransactions = txs;
-
-    const fr: Record<string, Friend> = {};
-    lastState.friends.forEach(f => { fr[f.name.replace(/[.#$/\[\]]/g, '_')] = f; });
-    firebaseData.friends = fr;
-
-    if (lastState.studySessions && lastState.studySessions.length > 0) {
-      const ss: Record<string, StudySession> = {};
-      lastState.studySessions.forEach(s => { ss[s.id] = s; });
-      firebaseData.studySessions = ss;
-    }
-    if (lastState.runningSession) {
-      firebaseData.runningSession = lastState.runningSession;
+      });
     }
 
-    await set(userRef, firebaseData);
     setUndoStack(rest);
     setShowUndoToast(false);
     triggerFleeting('( ˘▽˘)っ Undo');
@@ -233,7 +279,7 @@ export default function App() {
   };
 
   const handleAddSpend = async (entry: Omit<SpendEntry, 'id'>, friendName?: string) => {
-    pushToUndo();
+    pushToFinanceUndo();
     if (editingSpendId) {
       await updateSpend(editingSpendId, entry);
     } else {
@@ -258,7 +304,7 @@ export default function App() {
   };
 
   const handleAddDebt = async (t: Omit<DebtTransaction, 'id' | 'date' | 'settled'>) => {
-    pushToUndo();
+    pushToFinanceUndo();
     if (editingDebtId) {
       await updateDebt(editingDebtId, t);
     } else {
@@ -271,14 +317,14 @@ export default function App() {
   };
 
   const handleSettle = async (id: string) => {
-    pushToUndo();
+    pushToFinanceUndo();
     await settleDebt(id);
     triggerFleeting(KAOMOJI.SETTLE, 1000);
   };
 
   const handleDeleteEntry = async (id: string, type: 'SPEND' | 'DEBT') => {
     if (confirm(`DELETE? ${KAOMOJI.DELETE}`)) {
-      pushToUndo();
+      pushToFinanceUndo();
       if (type === 'SPEND') {
         const entry = spendEntries.find(e => e.id === id);
         await deleteSpend(id);
@@ -299,25 +345,25 @@ export default function App() {
 
   // ==== Study handlers ====
   const handleStartSession = async (subject: string, name?: string, note?: string) => {
-    pushToUndo();
+    pushToStudyUndo();
     await startSession(subject, name, note);
     triggerFleeting('ᕙ(`▿´)ᕗ', 600);
   };
 
   const handlePauseSession = async () => {
-    pushToUndo();
+    pushToStudyUndo();
     await pauseSession();
     triggerFleeting('( ´_ゝ`)', 400);
   };
 
   const handleResumeSession = async () => {
-    pushToUndo();
+    pushToStudyUndo();
     await resumeSession();
     triggerFleeting('ᕙ(`▿´)ᕗ', 400);
   };
 
   const handleStopSession = async () => {
-    pushToUndo();
+    pushToStudyUndo();
     await stopSession();
     triggerFleeting(KAOMOJI.SETTLE, 800);
   };
@@ -325,7 +371,7 @@ export default function App() {
   const handleDiscardSession = async () => {
     if (!runningSession) return;
     if (confirm(`DISCARD SESSION? ${KAOMOJI.DELETE}`)) {
-      pushToUndo();
+      pushToStudyUndo();
       await discardSession();
       triggerFleeting(KAOMOJI.DELETE, 600);
     }
@@ -333,7 +379,7 @@ export default function App() {
 
   const handleDeleteSession = async (id: string) => {
     if (confirm(`DELETE SESSION? ${KAOMOJI.DELETE}`)) {
-      pushToUndo();
+      pushToStudyUndo();
       await deleteSession(id);
     }
   };
@@ -346,7 +392,7 @@ export default function App() {
   };
 
   const handleUpdateSession = async (id: string, patch: Partial<StudySession>) => {
-    pushToUndo();
+    pushToStudyUndo();
     await updateSession(id, patch);
     handleCloseModal();
     triggerFleeting(KAOMOJI.CONFIRM_2, 500);
@@ -360,9 +406,16 @@ export default function App() {
       return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
     };
     const handler = (e: KeyboardEvent) => {
-      if (activeTab !== 'FOCUS') return;
       if (isSheetOpen || isSidebarOpen) return;
       if (isTextInput(e.target)) return;
+      
+      if (activeTab === 'FINANCE' && e.code === 'Space') {
+        e.preventDefault();
+        setActiveTab('FOCUS');
+        return;
+      }
+
+      if (activeTab !== 'FOCUS') return;
       if (e.code === 'Space') {
         e.preventDefault();
         if (!runningSession) {
@@ -384,7 +437,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, runningSession, isSheetOpen, isSidebarOpen]);
 
-  const TabButton = ({ label, active }: { label: 'SPENT' | 'CHRONICLE' | 'ANALYTICS' | 'FOCUS'; active: boolean }) => (
+  const TabButton = ({ label, active }: { label: 'FINANCE' | 'CHRONICLE' | 'FOCUS'; active: boolean }) => (
     <button
       onClick={() => setActiveTab(label)}
       className={`flex-1 py-5 text-[10px] tracking-widest font-display font-semibold transition-all ${active ? 'underline underline-offset-8 scale-110' : 'opacity-40 hover:opacity-100'}`}
@@ -463,7 +516,7 @@ export default function App() {
         </div>
       )}
 
-      {activeTab === 'SPENT' && (
+      {activeTab === 'FINANCE' && (
         <SpentTab
           monthTotal={monthTotal}
           spendByDay={spendByDay}
@@ -473,10 +526,6 @@ export default function App() {
           onDelete={(id) => handleDeleteEntry(id, 'SPEND')}
           monthlyBudget={monthlyBudget}
         />
-      )}
-
-      {activeTab === 'ANALYTICS' && (
-        <AnalyticsTab spendEntries={spendEntries} customTags={customTags} />
       )}
 
       {activeTab === 'CHRONICLE' && (
@@ -492,6 +541,8 @@ export default function App() {
           onSettle={handleSettle}
           onDelete={(id) => handleDeleteEntry(id, 'DEBT')}
           onEdit={(id) => openModal(() => { setEditingDebtId(id); setIsSheetOpen(true); })}
+          spendEntries={spendEntries}
+          customTags={customTags}
         />
       )}
 
@@ -535,9 +586,8 @@ export default function App() {
 
       {/* Tabs */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-[460px] border border-ink/30 bg-bg/80 backdrop-blur-md rounded-xl flex z-40 overflow-hidden shadow-[0_8px_30px_rgba(43,0,212,0.1)]">
-        <TabButton label="SPENT" active={activeTab === 'SPENT'} />
+        <TabButton label="FINANCE" active={activeTab === 'FINANCE'} />
         <TabButton label="FOCUS" active={activeTab === 'FOCUS'} />
-        <TabButton label="ANALYTICS" active={activeTab === 'ANALYTICS'} />
         <TabButton label="CHRONICLE" active={activeTab === 'CHRONICLE'} />
       </div>
 
@@ -551,7 +601,7 @@ export default function App() {
               className="fixed bottom-0 left-0 right-0 z-50 bg-bg border-t border-ink max-w-lg mx-auto"
             >
               <div className="ascii-torn bg-ink text-bg py-1 text-center">^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/</div>
-              {activeTab === 'SPENT' ? (
+              {activeTab === 'FINANCE' ? (
                 <SpendEntryForm
                   initialData={editingSpendId ? spendEntries.find(e => e.id === editingSpendId) : undefined}
                   friends={friends}
@@ -567,7 +617,7 @@ export default function App() {
                     if (editingStudyId) {
                       await handleUpdateSession(editingStudyId, data);
                     } else {
-                      pushToUndo();
+                      pushToStudyUndo();
                       const id = crypto.randomUUID();
                       const { ref, set } = await import('firebase/database');
                       const { db } = await import('./lib/firebase');
@@ -627,6 +677,7 @@ export default function App() {
         dailyStudyGoalMin={dailyStudyGoalMin}
         customSubjects={customSubjects}
         updateStudyPreferences={updateStudyPreferences}
+        onExport={handleExportData}
       />
     </div>
   );

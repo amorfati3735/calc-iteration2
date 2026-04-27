@@ -49,7 +49,9 @@ export function useStudyData(uid: string | null) {
         pausedMs: 0,
         distractions: 0,
       };
-      await set(ref(db, `users/${uid}/runningSession`), newRunning);
+      const clean: any = { ...newRunning };
+      Object.keys(clean).forEach(k => clean[k] === undefined && delete clean[k]);
+      await set(ref(db, `users/${uid}/runningSession`), clean);
       return newRunning.id;
     },
     [uid]

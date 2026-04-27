@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { DebtTransaction, Friend, SortType } from '../types';
+import { DebtTransaction, Friend, SortType, SpendEntry } from '../types';
+import { AnalyticsTab } from './AnalyticsTab';
 
 const formatBrutalDate = (timestamp: number) => {
   const d = new Date(timestamp);
@@ -26,9 +27,13 @@ interface ChronicleTabProps {
   onSettle: (id: string) => void;
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
+  spendEntries: SpendEntry[];
+  customTags: string[];
 }
 
-export function ChronicleTab({ sortedFriends, debtTransactions, sortType, getFriendBalance, onSortCycle, viewState, onViewDetail, onBack, onSettle, onDelete, onEdit }: ChronicleTabProps) {
+export function ChronicleTab({ sortedFriends, debtTransactions, sortType, getFriendBalance, onSortCycle, viewState, onViewDetail, onBack, onSettle, onDelete, onEdit, spendEntries, customTags }: ChronicleTabProps) {
+  const [subTab, setSubTab] = useState<'CHRONICLE' | 'ANALYTICS'>('CHRONICLE');
+
   if (viewState.type === 'DETAIL' && viewState.id) {
     return (
       <FriendDetail
@@ -45,41 +50,62 @@ export function ChronicleTab({ sortedFriends, debtTransactions, sortType, getFri
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center h-8">
-        <button
-          onClick={onSortCycle}
-          className="text-[10px] opacity-60 underline font-mono font-bold tracking-widest px-2 py-1 -ml-2 active:opacity-100"
-        >
-          SORT: {sortType}
-        </button>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        {sortedFriends.length === 0 && (
-          <div className="col-span-2 py-20 text-center opacity-50">
-            <span className="text-2xl font-mono">{KAOMOJI.EMPTY}</span>
-            <br /><span className="text-[10px] tracking-widest">NO FRIENDS</span>
-          </div>
+        <div className="flex gap-4">
+          <button
+            onClick={() => setSubTab('CHRONICLE')}
+            className={`text-xs font-mono font-bold tracking-widest px-2 py-1 -ml-2 transition-opacity ${subTab === 'CHRONICLE' ? 'underline opacity-100' : 'opacity-40 hover:opacity-80'}`}
+          >
+            CHRONICLE
+          </button>
+          <button
+            onClick={() => setSubTab('ANALYTICS')}
+            className={`text-xs font-mono font-bold tracking-widest px-2 py-1 transition-opacity ${subTab === 'ANALYTICS' ? 'underline opacity-100' : 'opacity-40 hover:opacity-80'}`}
+          >
+            ANALYTICS
+          </button>
+        </div>
+        {subTab === 'CHRONICLE' && (
+          <button
+            onClick={onSortCycle}
+            className="text-[10px] opacity-60 underline font-mono font-bold tracking-widest px-2 py-1 active:opacity-100"
+          >
+            SORT: {sortType}
+          </button>
         )}
-        {sortedFriends.map(friend => {
-          const balance = getFriendBalance(friend.name);
-          return (
-            <div
-              key={friend.name}
-              onClick={() => onViewDetail(friend.name)}
-              className="brutal-box aspect-square flex flex-col justify-between cursor-pointer group hover:bg-ink/5"
-            >
-              <div className="text-sm font-display uppercase tracking-tight">{friend.name}</div>
-              <div className="flex-grow flex flex-wrap gap-1.5 p-2 opacity-5 mt-2">
-                {Array.from({ length: 40 }).map((_, i) => <div key={i} className="w-0.5 h-0.5 bg-ink rounded-full" />)}
-              </div>
-              <div className="text-right flex items-center justify-end gap-1">
-                {balance > 5000 && <span className="text-[10px]">{KAOMOJI.OWES_LOT}</span>}
-                {balance < -5000 && <span className="text-[10px]">{KAOMOJI.YOU_OWE_LOT}</span>}
-                <span className="text-xl font-mono font-bold tracking-tighter">{balance > 0 ? `+${balance}` : balance}</span>
-              </div>
-            </div>
-          );
-        })}
       </div>
+
+      {subTab === 'CHRONICLE' ? (
+        <div className="grid grid-cols-2 gap-4">
+          {sortedFriends.length === 0 && (
+            <div className="col-span-2 py-20 text-center opacity-50">
+              <span className="text-2xl font-mono">{KAOMOJI.EMPTY}</span>
+              <br /><span className="text-[10px] tracking-widest">NO FRIENDS</span>
+            </div>
+          )}
+          {sortedFriends.map(friend => {
+            const balance = getFriendBalance(friend.name);
+            return (
+              <div
+                key={friend.name}
+                onClick={() => onViewDetail(friend.name)}
+                className="brutal-box aspect-square flex flex-col justify-between cursor-pointer group hover:bg-ink/5"
+              >
+                <div className="text-sm font-display uppercase tracking-tight">{friend.name}</div>
+                <div className="flex-grow flex flex-wrap gap-1.5 p-2 opacity-5 mt-2">
+                  {Array.from({ length: 40 }).map((_, i) => <div key={i} className="w-0.5 h-0.5 bg-ink rounded-full" />)}
+                </div>
+                <div className="text-right flex items-center justify-end gap-1">
+                  {balance > 5000 && <span className="text-[10px]">{KAOMOJI.OWES_LOT}</span>}
+                  {balance < -5000 && <span className="text-[10px]">{KAOMOJI.YOU_OWE_LOT}</span>}
+                  <span className="text-xl font-mono font-bold tracking-tighter">{balance > 0 ? `+${balance}` : balance}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <AnalyticsTab spendEntries={spendEntries} customTags={customTags} />
+      )}
     </div>
   );
 }
