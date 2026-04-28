@@ -493,15 +493,11 @@ export default function App() {
 
       {/* Import prompt */}
       {needsImport && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-ink text-bg px-4 py-3 flex items-center gap-3 max-w-sm"
-        >
+        <div className="pop-in fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-ink text-bg px-4 py-3 flex items-center gap-3 max-w-sm">
           <span className="text-xs font-mono">Found local data. Import?</span>
           <button onClick={importLocalData} className="bg-bg text-ink px-3 py-1 text-[10px] font-mono font-bold">YES</button>
           <button onClick={() => {}} className="text-[10px] font-mono opacity-60">NO</button>
-        </motion.div>
+        </div>
       )}
 
       {/* Quick Note Modal */}
@@ -629,7 +625,8 @@ export default function App() {
       {/* FAB */}
       <button
         onClick={() => openModal(() => setIsSheetOpen(true))}
-        className="fixed bottom-24 right-8 w-14 h-14 bg-ink text-bg flex items-center justify-center text-3xl z-40 hover:scale-105 active:scale-95 transition-transform"
+        aria-label="New entry"
+        className="fixed bottom-24 right-8 w-14 h-14 bg-ink text-bg flex items-center justify-center text-3xl z-40 hover:scale-105 active:scale-95 transition-all shadow-[4px_4px_0_var(--ink)] hover:shadow-[6px_6px_0_var(--ink)]"
       >
         +
       </button>
@@ -656,10 +653,10 @@ export default function App() {
         <div onClick={handleCloseModal} className="absolute inset-0 bg-ink/10 backdrop-blur-[2px]" />
       </div>
       <div
-        className={`fixed bottom-0 left-0 right-0 z-50 bg-bg border-t border-ink max-w-lg mx-auto transition-transform duration-300 ease-out max-h-[85dvh] flex flex-col ${isSheetOpen ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`sheet-shell fixed bottom-0 left-0 right-0 z-50 bg-bg border-t border-ink max-w-lg mx-auto transition-transform duration-300 ease-out flex flex-col ${isSheetOpen ? 'translate-y-0' : 'translate-y-full'}`}
       >
-        <div className="ascii-torn bg-ink text-bg py-1 text-center shrink-0">^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/</div>
-        <div className="overflow-y-auto flex-1 overscroll-contain">
+        <div className="ascii-torn bg-ink text-bg py-1 text-center shrink-0" aria-hidden="true">^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/^/</div>
+        <div className="overflow-y-auto flex-1 overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
           {activeTab === 'FINANCE' ? (
             <SpendEntryForm
               initialData={editingSpendId ? spendEntries.find(e => e.id === editingSpendId) : undefined}
@@ -762,37 +759,37 @@ function SpendEntryForm({ initialData, friends, customTags, onSubmit, onClose, i
   };
 
   return (
-    <div className="p-6 pb-10 space-y-8 font-sans">
+    <div className="sheet-padding p-5 sm:p-6 pb-6 sm:pb-10 space-y-5 sm:space-y-7 font-sans sheet-stack">
       <div className="flex justify-between items-center px-1">
         <h3 className="text-[10px] font-mono font-bold tracking-[0.2em] opacity-40 uppercase">{initialData ? 'Edit entry' : 'New transaction'}</h3>
         <button onClick={onClose} className="text-[10px] font-mono font-bold underline opacity-60 active:opacity-100">CANCEL</button>
       </div>
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="space-y-1">
           <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">AMOUNT</div>
           <div className="flex items-baseline border-b-4 border-ink pb-1">
-            <input ref={inputRef} type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} className="flex-1 bg-transparent outline-none text-7xl font-display font-black tracking-tighter" placeholder="0" />
-            <span className="text-3xl font-mono font-black opacity-10 ml-2">U</span>
+            <input ref={inputRef} type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} className="sheet-amount-input flex-1 min-w-0 bg-transparent outline-none text-[clamp(3rem,14vw,4.5rem)] font-display font-black tracking-tighter leading-none" placeholder="0" />
+            <span className="text-2xl sm:text-3xl font-mono font-black opacity-10 ml-2 shrink-0">U</span>
           </div>
         </div>
-        <div className="space-y-6">
+        <div className="space-y-5">
           <div className="space-y-1">
             <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">DESCRIPTION</div>
-            <input value={note} onChange={e => setNote(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-3 text-lg font-sans" placeholder="..." />
+            <input value={note} onChange={e => setNote(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-2.5 text-base sm:text-lg font-sans" placeholder="..." />
           </div>
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-1">
+          <div className="grid grid-cols-2 gap-4 sm:gap-6">
+            <div className="space-y-1 min-w-0">
               <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">TAG</div>
-              <input value={tag} onChange={e => setTag(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-3 text-sm font-mono font-bold mb-2" placeholder="[NONE]" />
-              <div className="flex flex-wrap gap-2">
+              <input value={tag} onChange={e => setTag(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-2.5 text-sm font-mono font-bold mb-2" placeholder="[NONE]" />
+              <div className="flex flex-wrap gap-1.5">
                 {customTags.map(t => (
-                  <button key={t} onClick={() => setTag(t)} className={`px-2 py-1 border border-ink text-xs font-mono transition-colors ${tag === t ? 'bg-ink text-bg' : 'bg-transparent text-ink'}`}>[{t}]</button>
+                  <button key={t} onClick={() => setTag(t)} className={`px-2 py-1 border border-ink text-[11px] font-mono transition-colors ${tag === t ? 'bg-ink text-bg' : 'bg-transparent text-ink'}`}>[{t}]</button>
                 ))}
               </div>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">DATE</div>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-3 text-sm font-mono font-bold" />
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-2.5 text-sm font-mono font-bold" />
             </div>
           </div>
           {!initialData && (
@@ -800,9 +797,9 @@ function SpendEntryForm({ initialData, friends, customTags, onSubmit, onClose, i
               <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">FRIEND (OPTIONAL)</div>
               <input value={friendName} onChange={e => setFriendName(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-2 text-sm font-mono font-bold mb-2" placeholder="..." />
               {friends.length > 0 && (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {friends.slice(0, 3).map(f => (
-                    <button key={f.name} onClick={() => setFriendName(f.name)} className={`px-2 py-1 border border-ink text-xs font-mono transition-colors whitespace-nowrap ${friendName === f.name ? 'bg-ink text-bg' : 'bg-transparent text-ink'}`}>[{f.name}]</button>
+                    <button key={f.name} onClick={() => setFriendName(f.name)} className={`px-2 py-1 border border-ink text-[11px] font-mono transition-colors whitespace-nowrap ${friendName === f.name ? 'bg-ink text-bg' : 'bg-transparent text-ink'}`}>[{f.name}]</button>
                   ))}
                 </div>
               )}
@@ -810,11 +807,11 @@ function SpendEntryForm({ initialData, friends, customTags, onSubmit, onClose, i
           )}
         </div>
       </div>
-      <div className="flex flex-col gap-3 pt-6">
-        <button onClick={() => handle('SPENT')} className="w-full bg-ink text-bg py-5 font-display text-xl font-bold border-2 border-ink tracking-[0.05em] active:scale-[0.97] transition-transform">
+      <div className="flex flex-col gap-2.5 pt-3">
+        <button onClick={() => handle('SPENT')} className="w-full bg-ink text-bg py-4 sm:py-5 font-display text-lg sm:text-xl font-bold border-2 border-ink tracking-[0.05em] active:scale-[0.97] transition-transform">
           LOG AS SPENT
         </button>
-        <button onClick={() => handle('EARNED')} className="w-full bg-transparent text-ink py-4 font-display text-base font-bold border-2 border-ink tracking-widest active:scale-[0.97] transition-transform opacity-60">
+        <button onClick={() => handle('EARNED')} className="w-full bg-transparent text-ink py-3 sm:py-4 font-display text-sm sm:text-base font-bold border-2 border-ink tracking-widest active:scale-[0.97] transition-transform opacity-60">
           LOG AS EARNED
         </button>
       </div>
@@ -843,15 +840,15 @@ function DebtEntryForm({ initialData, friends, onSubmit, onClose, isOpen }: { in
   };
 
   return (
-    <div className="p-6 space-y-8 font-sans">
+    <div className="sheet-padding p-5 sm:p-6 pb-6 sm:pb-10 space-y-5 sm:space-y-7 font-sans sheet-stack">
       <div className="flex justify-between items-center px-1">
         <h3 className="text-[10px] font-mono font-bold tracking-[0.2em] opacity-40 uppercase">{initialData ? 'Edit Chronicle' : 'New Chronicle'}</h3>
         <button onClick={onClose} className="text-[10px] font-mono font-bold underline opacity-60 active:opacity-100">CANCEL</button>
       </div>
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="space-y-1">
           <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">FRIEND</div>
-          <input ref={inputRef} value={name} onChange={e => setName(e.target.value)} className="w-full border-b-2 border-ink bg-transparent outline-none py-2 text-3xl font-display font-bold uppercase" list="friends-list" placeholder="NAME" />
+          <input ref={inputRef} value={name} onChange={e => setName(e.target.value)} className="w-full border-b-2 border-ink bg-transparent outline-none py-2 text-2xl sm:text-3xl font-display font-bold uppercase" list="friends-list" placeholder="NAME" />
           <datalist id="friends-list">{friends.map(f => <option key={f.name} value={f.name} />)}</datalist>
         </div>
         <div className="space-y-4">
@@ -862,10 +859,10 @@ function DebtEntryForm({ initialData, friends, onSubmit, onClose, isOpen }: { in
               <button onClick={() => setDirection('PAID')} className={`flex-1 py-3 transition-colors ${direction === 'PAID' ? 'bg-ink text-bg' : 'bg-transparent text-ink'}`}>I PAID</button>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:gap-4">
             <div className="space-y-1">
               <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">AMOUNT</div>
-              <input value={amountRaw} onChange={e => setAmountRaw(e.target.value)} className="w-full border-b border-ink bg-transparent outline-none py-2 font-mono font-bold text-2xl" placeholder="0 INR" />
+              <input value={amountRaw} onChange={e => setAmountRaw(e.target.value)} inputMode="decimal" className="w-full border-b border-ink bg-transparent outline-none py-2 font-mono font-bold text-2xl sm:text-3xl" placeholder="0 INR" />
             </div>
             <div className="space-y-1">
               <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">NOTE</div>
@@ -874,7 +871,7 @@ function DebtEntryForm({ initialData, friends, onSubmit, onClose, isOpen }: { in
           </div>
         </div>
       </div>
-      <button onClick={handle} className="w-full bg-ink text-bg py-5 font-display text-xl font-bold border-2 border-ink tracking-widest uppercase active:scale-[0.98] transition-transform">
+      <button onClick={handle} className="w-full bg-ink text-bg py-4 sm:py-5 font-display text-lg sm:text-xl font-bold border-2 border-ink tracking-widest uppercase active:scale-[0.98] transition-transform">
         CONFIRM ENTRY
       </button>
     </div>
@@ -940,7 +937,7 @@ function StudySessionForm({
   };
 
   return (
-    <div className="p-6 pb-10 space-y-8 font-sans">
+    <div className="sheet-padding p-5 sm:p-6 pb-6 sm:pb-10 space-y-5 sm:space-y-7 font-sans sheet-stack">
       <div className="flex justify-between items-center px-1">
         <h3 className="text-[10px] font-mono font-bold tracking-[0.2em] opacity-40 uppercase">
           {initialData ? 'Edit session' : 'Manual session'}
@@ -952,7 +949,7 @@ function StudySessionForm({
           CANCEL
         </button>
       </div>
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="space-y-1">
           <div className="text-[10px] opacity-40 font-mono font-bold tracking-widest px-1">DURATION (MIN)</div>
           <div className="flex items-baseline border-b-4 border-ink pb-1">
@@ -962,10 +959,10 @@ function StudySessionForm({
               inputMode="decimal"
               value={durationMin}
               onChange={e => setDurationMin(e.target.value)}
-              className="flex-1 bg-transparent outline-none text-7xl font-display font-black tracking-tighter"
+              className="sheet-amount-input flex-1 min-w-0 bg-transparent outline-none text-[clamp(3rem,14vw,4.5rem)] font-display font-black tracking-tighter leading-none"
               placeholder="0"
             />
-            <span className="text-3xl font-mono font-black opacity-10 ml-2">m</span>
+            <span className="text-2xl sm:text-3xl font-mono font-black opacity-10 ml-2 shrink-0">m</span>
           </div>
         </div>
         <div className="space-y-1">
@@ -1033,7 +1030,7 @@ function StudySessionForm({
       </div>
       <button
         onClick={handle}
-        className="w-full bg-ink text-bg py-5 font-display text-xl font-bold border-2 border-ink tracking-widest uppercase active:scale-[0.98] transition-transform"
+        className="w-full bg-ink text-bg py-4 sm:py-5 font-display text-lg sm:text-xl font-bold border-2 border-ink tracking-widest uppercase active:scale-[0.98] transition-transform"
       >
         {initialData ? 'SAVE CHANGES' : 'LOG SESSION'}
       </button>
