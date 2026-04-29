@@ -39,7 +39,10 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-
+#root {
+  position: relative;
+  z-index: 1;
+}
 
 /* Faint graph paper grid */
 .grid-overlay {
@@ -50,7 +53,7 @@ body {
     linear-gradient(var(--grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid) 1px, transparent 1px);
   background-size: 20px 20px;
-  z-index: -1;
+  z-index: 0;
 }
 
 /* Dot grid variant */
@@ -61,7 +64,7 @@ body {
   background-image: radial-gradient(circle, var(--ink) 1.5px, transparent 1.5px);
   background-size: 20px 20px;
   opacity: 0.15;
-  z-index: -1;
+  z-index: 0;
 }
 
 
