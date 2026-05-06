@@ -94,6 +94,12 @@ export default function App() {
     [new Date().toDateString()]: true,
   });
 
+  const lastSubject = useMemo(() => {
+    if (!studySessions || studySessions.length === 0) return '';
+    const sorted = [...studySessions].sort((a, b) => b.endedAt - a.endedAt);
+    return sorted[0].subject;
+  }, [studySessions]);
+
   // Show load kaomoji when data first loads
   const hasShownLoad = useRef(false);
   useEffect(() => {
@@ -129,6 +135,7 @@ export default function App() {
     } else {
       setIsSheetOpen(false);
       setIsSidebarOpen(false);
+      setIsQuickNoteOpen(false);
       setViewState({ type: 'LIST' });
       setEditingSpendId(null);
       setEditingDebtId(null);
@@ -348,19 +355,16 @@ export default function App() {
 
   // ==== Study handlers ====
   const handleStartSession = async (subject: string, name?: string, note?: string) => {
-    pushToStudyUndo();
     await startSession(subject, name, note);
     triggerFleeting('ᕙ(`▿´)ᕗ', 600);
   };
 
   const handlePauseSession = async () => {
-    pushToStudyUndo();
     await pauseSession();
     triggerFleeting('( ´_ゝ`)', 400);
   };
 
   const handleResumeSession = async () => {
-    pushToStudyUndo();
     await resumeSession();
     triggerFleeting('ᕙ(`▿´)ᕗ', 400);
   };
@@ -424,6 +428,12 @@ export default function App() {
         return;
       }
       
+      if (activeTab === 'FINANCE' && e.code === 'KeyN') {
+        e.preventDefault();
+        setIsSheetOpen(true);
+        return;
+      }
+      
       if (activeTab === 'FINANCE' && e.code === 'Space') {
         e.preventDefault();
         setActiveTab('FOCUS');
@@ -434,7 +444,7 @@ export default function App() {
       if (e.code === 'Space') {
         e.preventDefault();
         if (!runningSession) {
-          handleStartSession('untitled');
+          handleStartSession(lastSubject || 'untitled');
         } else if (runningSession.pausedAt) {
           handleResumeSession();
         } else {
@@ -450,7 +460,7 @@ export default function App() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, runningSession, isSheetOpen, isSidebarOpen]);
+  }, [activeTab, runningSession, isSheetOpen, isSidebarOpen, lastSubject]);
 
   const TabButton = ({ label, active }: { label: 'FINANCE' | 'CHRONICLE' | 'FOCUS'; active: boolean }) => (
     <button
@@ -607,6 +617,7 @@ export default function App() {
             runningSession={runningSession}
             dailyStudyGoalMin={dailyStudyGoalMin}
             customSubjects={customSubjects}
+            lastSubject={lastSubject}
             onStart={handleStartSession}
             onPause={handlePauseSession}
             onResume={handleResumeSession}
@@ -670,6 +681,7 @@ export default function App() {
           <StudySessionForm
             initialData={editingStudyId ? studySessions.find(s => s.id === editingStudyId) : undefined}
             customSubjects={customSubjects}
+            lastSubject={lastSubject}
             onSubmit={async (data) => {
               if (editingStudyId) {
                 await handleUpdateSession(editingStudyId, data);
@@ -744,13 +756,26 @@ function SpendEntryForm({ initialData, friends, customTags, onSubmit, onClose, i
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!initialData && isOpen) {
+    if (isOpen) {
+      if (initialData) {
+        setAmount(initialData.amount?.toString() || '');
+        setNote(initialData.note || '');
+        setTag(initialData.tag || '');
+        setFriendName('');
+        setDate(new Date(initialData.date || Date.now()).toISOString().split('T')[0]);
+      } else {
+        setAmount('');
+        setNote('');
+        setTag('');
+        setFriendName('');
+        setDate(new Date().toISOString().split('T')[0]);
+      }
       // Small delay allows the sheet transition to start before grabbing focus, 
       // which makes the keyboard slide up smoother on Android.
       const timer = setTimeout(() => inputRef.current?.focus(), 50);
       return () => clearTimeout(timer);
     }
-  }, [initialData, isOpen]);
+  }, [isOpen, initialData]);
 
   const handle = (type: 'SPENT' | 'EARNED') => {
     const val = parseFloat(amount);
@@ -827,11 +852,22 @@ function DebtEntryForm({ initialData, friends, onSubmit, onClose, isOpen }: { in
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!initialData && isOpen) {
+    if (isOpen) {
+      if (initialData) {
+        setName(initialData.friendName);
+        setDirection(initialData.direction);
+        setAmountRaw(initialData.amountRaw);
+        setNote(initialData.note);
+      } else {
+        setName(friends[0]?.name || '');
+        setDirection('LENT');
+        setAmountRaw('');
+        setNote('');
+      }
       const timer = setTimeout(() => inputRef.current?.focus(), 50);
       return () => clearTimeout(timer);
     }
-  }, [initialData, isOpen]);
+  }, [isOpen, initialData, friends]);
 
   const handle = () => {
     if (!name.trim()) return;
@@ -881,17 +917,19 @@ function DebtEntryForm({ initialData, friends, onSubmit, onClose, isOpen }: { in
 function StudySessionForm({
   initialData,
   customSubjects,
+  lastSubject,
   onSubmit,
   onClose,
   isOpen
 }: {
   initialData?: StudySession;
   customSubjects: string[];
+  lastSubject?: string;
   onSubmit: (data: Omit<StudySession, 'id'>) => void;
   onClose: () => void;
   isOpen?: boolean;
 }) {
-  const [subject, setSubject] = useState(initialData?.subject || '');
+  const [subject, setSubject] = useState(initialData?.subject || lastSubject || '');
   const [name, setName] = useState(initialData?.name || '');
   const [note, setNote] = useState(initialData?.note || '');
   const [durationMin, setDurationMin] = useState(
@@ -908,11 +946,38 @@ function StudySessionForm({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!initialData && isOpen) {
+    if (isOpen) {
+      if (initialData) {
+        setSubject(initialData.subject);
+        setName(initialData.name || '');
+        setNote(initialData.note || '');
+        setDurationMin(Math.round(initialData.durationMs / 60000).toString());
+        const d = new Date(initialData.startedAt);
+        setDate(d.toISOString().split('T')[0]);
+        setTime(
+          `${d.getHours().toString().padStart(2, '0')}:${d
+            .getMinutes()
+            .toString()
+            .padStart(2, '0')}`
+        );
+      } else {
+        setSubject(lastSubject || '');
+        setName('');
+        setNote('');
+        setDurationMin('');
+        const d = new Date();
+        setDate(d.toISOString().split('T')[0]);
+        setTime(
+          `${d.getHours().toString().padStart(2, '0')}:${d
+            .getMinutes()
+            .toString()
+            .padStart(2, '0')}`
+        );
+      }
       const timer = setTimeout(() => inputRef.current?.focus(), 50);
       return () => clearTimeout(timer);
     }
-  }, [initialData, isOpen]);
+  }, [isOpen, initialData, lastSubject]);
 
   const handle = () => {
     const mins = parseFloat(durationMin);

@@ -38,6 +38,7 @@ interface FocusTabProps {
   runningSession: RunningSession | null;
   dailyStudyGoalMin: number;
   customSubjects: string[];
+  lastSubject: string;
   onStart: (subject: string, name?: string, note?: string) => void;
   onPause: () => void;
   onResume: () => void;
@@ -126,6 +127,7 @@ export const FocusTab = memo(function FocusTab({
   runningSession,
   dailyStudyGoalMin,
   customSubjects,
+  lastSubject,
   onStart,
   onPause,
   onResume,
@@ -387,7 +389,7 @@ export const FocusTab = memo(function FocusTab({
                 <input
                   value={draftSubject}
                   onChange={e => setDraftSubject(e.target.value)}
-                  placeholder="..."
+                  placeholder={lastSubject || '...'}
                   className="flex-1 bg-transparent border-b border-ink outline-none font-display font-bold uppercase text-base"
                 />
               </div>
@@ -433,7 +435,7 @@ export const FocusTab = memo(function FocusTab({
             </div>
             <button
               onClick={() => {
-                onStart(draftSubject || 'untitled', draftName || undefined, draftNote || undefined);
+                onStart(draftSubject || lastSubject || 'untitled', draftName || undefined, draftNote || undefined);
                 setDraftSubject('');
                 setDraftName('');
                 setDraftNote('');
