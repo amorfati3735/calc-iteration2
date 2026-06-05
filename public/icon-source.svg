@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#EDEBF2"/>
+  <!-- grid background -->
+  <g stroke="#2B00D4" stroke-opacity="0.08" stroke-width="1">
+    <path d="M0 64H512M0 128H512M0 192H512M0 256H512M0 320H512M0 384H512M0 448H512"/>
+    <path d="M64 0V512M128 0V512M192 0V512M256 0V512M320 0V512M384 0V512M448 0V512"/>
+  </g>
+  <!-- brutalist border -->
+  <rect x="48" y="48" width="416" height="416" fill="none" stroke="#2B00D4" stroke-width="12"/>
+  <!-- hard shadow offset block -->
+  <rect x="64" y="64" width="384" height="384" fill="#2B00D4"/>
+  <!-- CALC text -->
+  <text x="256" y="295" text-anchor="middle"
+        font-family="'Space Grotesk', sans-serif" font-weight="900" font-size="140"
+        letter-spacing="-6" fill="#EDEBF2">CALC</text>
+</svg>
