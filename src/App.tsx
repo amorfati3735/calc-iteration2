@@ -553,39 +553,37 @@ export default function App() {
         </div>
       </div>
 
-      {/* Branding & Theme Toggle */}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 flex gap-2 w-full max-w-[300px] justify-center">
-        <button
-          onClick={() => openModal(() => setIsSidebarOpen(true))}
-          className="backdrop-blur-md bg-ink/5 border border-ink/10 px-3 py-1.5 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform whitespace-nowrap flex-shrink-0"
-        >
-          [ CFG ]
-        </button>
-        <button
-          onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-          className="backdrop-blur-md bg-ink/5 border border-ink/10 px-4 py-1.5 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform whitespace-nowrap flex-shrink-0 font-bold"
-        >
-          CALC
-        </button>
+      {/* Top pills — unified container to prevent overlap on narrow screens */}
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 w-full max-w-lg px-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex gap-2">
+            <button
+              onClick={() => openModal(() => setIsSidebarOpen(true))}
+              className="backdrop-blur-md bg-ink/5 border border-ink/10 px-3 py-1.5 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform whitespace-nowrap flex-shrink-0"
+            >
+              [ CFG ]
+            </button>
+            <button
+              onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+              className="backdrop-blur-md bg-ink/5 border border-ink/10 px-4 py-1.5 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform whitespace-nowrap flex-shrink-0 font-bold"
+            >
+              CALC
+            </button>
+          </div>
+
+          {activeTab === 'FOCUS' && (
+            <TodayPill
+              studySessions={studySessions}
+              runningSession={runningSession}
+              goalMin={dailyStudyGoalMin}
+            />
+          )}
+
+          {activeTab === 'FINANCE' && (
+            <FinanceStreakPill spendEntries={spendEntries} />
+          )}
+        </div>
       </div>
-
-      {/* Top-right Today pill (FOCUS tab only) */}
-      {activeTab === 'FOCUS' && (
-        <div className="fixed top-4 right-4 z-30">
-          <TodayPill
-            studySessions={studySessions}
-            runningSession={runningSession}
-            goalMin={dailyStudyGoalMin}
-          />
-        </div>
-      )}
-
-      {/* Top-right Finance streak pill (FINANCE tab only) */}
-      {activeTab === 'FINANCE' && (
-        <div className="fixed top-4 right-4 z-30">
-          <FinanceStreakPill spendEntries={spendEntries} />
-        </div>
-      )}
 
       <Suspense fallback={<div className="font-mono text-xs opacity-40 py-12 text-center">loading...</div>}>
         {activeTab === 'FINANCE' && (
@@ -1140,7 +1138,6 @@ function FinanceStreakPill({ spendEntries }: { spendEntries: SpendEntry[] }) {
     <div className="bg-bg border border-ink px-3 py-1 flex items-center gap-2 shadow-[2px_2px_0px_0px_var(--ink)]">
       <span className="text-[10px] font-mono font-bold tracking-widest opacity-60">STREAK</span>
       <span className="font-display font-bold">{streak}</span>
-      <span className="text-xs">{streak > 0 ? '🔥' : '❄️'}</span>
     </div>
   );
 }
