@@ -580,6 +580,13 @@ export default function App() {
         </div>
       )}
 
+      {/* Top-right Finance streak pill (FINANCE tab only) */}
+      {activeTab === 'FINANCE' && (
+        <div className="fixed top-4 right-4 z-30">
+          <FinanceStreakPill spendEntries={spendEntries} />
+        </div>
+      )}
+
       <Suspense fallback={<div className="font-mono text-xs opacity-40 py-12 text-center">loading...</div>}>
         {activeTab === 'FINANCE' && (
           <SpentTab
@@ -1099,6 +1106,41 @@ function StudySessionForm({
       >
         {initialData ? 'SAVE CHANGES' : 'LOG SESSION'}
       </button>
+    </div>
+  );
+}
+
+function FinanceStreakPill({ spendEntries }: { spendEntries: SpendEntry[] }) {
+  const streak = useMemo(() => {
+    const uniqueDays = Array.from(new Set(spendEntries.map(e => new Date(e.date).toDateString())))
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    
+    if (uniqueDays.length === 0) return 0;
+    
+    const today = new Date().toDateString();
+    const hasToday = uniqueDays.includes(today);
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterday = yesterdayDate.toDateString();
+    const hasYesterday = uniqueDays.includes(yesterday);
+    
+    if (!hasToday && !hasYesterday) return 0;
+    
+    let currentStreak = 0;
+    let checkingDate = new Date(hasToday ? today : yesterday);
+    while (uniqueDays.includes(checkingDate.toDateString())) {
+      currentStreak++;
+      checkingDate.setDate(checkingDate.getDate() - 1);
+    }
+    
+    return currentStreak;
+  }, [spendEntries]);
+
+  return (
+    <div className="bg-bg border border-ink px-3 py-1 flex items-center gap-2 shadow-[2px_2px_0px_0px_var(--ink)]">
+      <span className="text-[10px] font-mono font-bold tracking-widest opacity-60">STREAK</span>
+      <span className="font-display font-bold">{streak}</span>
+      <span className="text-xs">{streak > 0 ? '🔥' : '❄️'}</span>
     </div>
   );
 }

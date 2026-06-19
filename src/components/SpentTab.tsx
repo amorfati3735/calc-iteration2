@@ -158,8 +158,8 @@ export const SpentTab = memo(function SpentTab({ monthTotal, spendByDay, expande
                       {e.tag && <span className="opacity-40 text-[10px]">[{e.tag}]</span>}
                     </div>
                     <div className="flex items-baseline gap-2">
-                      <span className={`font-mono ${e.type === 'EARNED' ? 'opacity-40 font-normal' : 'font-bold'}`}>
-                        {e.type === 'EARNED' ? '-' : '+'}{e.amount}
+                      <span className={`font-mono ${e.amount === 0 ? 'text-red-500 font-bold' : e.type === 'EARNED' ? 'opacity-40 font-normal' : 'font-bold'}`}>
+                        {e.amount === 0 ? '0' : (e.type === 'EARNED' ? '-' : '+') + e.amount}
                       </span>
                     </div>
                   </div>
