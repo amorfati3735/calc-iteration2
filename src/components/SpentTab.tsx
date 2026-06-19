@@ -59,43 +59,46 @@ export const SpentTab = memo(function SpentTab({ monthTotal, spendByDay, expande
     return Object.entries(groups).sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime());
   }, [spendByDay]);
 
-  // Progressive budget calculations
-  const { dailyAim, remainingWeekly, remainingMonthly, hasBudget } = useMemo(() => {
-    if (monthlyBudget <= 0) return { dailyAim: 0, remainingWeekly: 0, remainingMonthly: 0, hasBudget: false };
+  // Progressive budget calculations (4-day lap system)
+  const { dailyAim, lapSpend, lapBudget, remainingMonthly, lapStart, lapEnd, hasBudget } = useMemo(() => {
+    if (monthlyBudget <= 0) return { dailyAim: 0, lapSpend: 0, lapBudget: 0, remainingMonthly: 0, lapStart: 0, lapEnd: 0, hasBudget: false };
     const now = new Date();
+    const day = now.getDate();
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const daysLeftInMonth = daysInMonth - now.getDate() + 1; // including today
+    const daysLeftInMonth = daysInMonth - day + 1;
     const remMonth = monthlyBudget - monthTotal;
     
     // Daily Aim
     const dAim = daysLeftInMonth > 0 ? remMonth / daysLeftInMonth : remMonth;
     
-    // Remaining Weekly (Hardcoded logic)
-    const day = now.getDate();
-    const currentWeek = day <= 7 ? 1 : day <= 14 ? 2 : day <= 21 ? 3 : 4;
-    const startDay = (currentWeek - 1) * 7 + 1;
-    const endDay = currentWeek === 4 ? 31 : currentWeek * 7;
+    // 4-day lap
+    const lapIndex = Math.ceil(day / 4);
+    const lapStart = (lapIndex - 1) * 4 + 1;
+    const lapEnd = Math.min(lapIndex * 4, daysInMonth);
+    const totalLaps = Math.ceil(daysInMonth / 4);
+    const lBudget = monthlyBudget / totalLaps;
     
-    let currentWeekSpend = 0;
+    let lSpend = 0;
     spendByDay.forEach(([dateStr, entries]) => {
       const d = new Date(dateStr);
       if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
         const dd = d.getDate();
-        if (dd >= startDay && dd <= endDay) {
+        if (dd >= lapStart && dd <= lapEnd) {
           entries.forEach(e => {
-            if (e.type === 'SPENT') currentWeekSpend += e.amount;
-            else currentWeekSpend -= e.amount;
+            if (e.type === 'SPENT') lSpend += e.amount;
+            else lSpend -= e.amount;
           });
         }
       }
     });
-    
-    const remWeek = (monthlyBudget / 4) - currentWeekSpend;
 
     return { 
       dailyAim: Math.max(0, Math.round(dAim)), 
-      remainingWeekly: Math.round(remWeek), 
+      lapSpend: Math.round(lSpend), 
+      lapBudget: Math.round(lBudget), 
       remainingMonthly: Math.round(remMonth),
+      lapStart,
+      lapEnd,
       hasBudget: true
     };
   }, [monthlyBudget, monthTotal, spendByDay]);
@@ -106,9 +109,9 @@ export const SpentTab = memo(function SpentTab({ monthTotal, spendByDay, expande
         <div className="flex flex-col">
           {hasBudget ? (
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="font-display text-4xl">{dailyAim}</span>
-              <span className="font-mono text-sm opacity-60">/{remainingWeekly}</span>
-              <span className="font-mono text-[10px] opacity-40">/{remainingMonthly}</span>
+              <span className="font-display text-3xl">{lapSpend}</span>
+              <span className="font-mono text-sm opacity-60">/{lapBudget}</span>
+              <span className="font-mono text-[10px] opacity-40">/{lapStart}-{lapEnd}</span>
             </div>
           ) : (
             <div className="text-xs font-mono tracking-widest opacity-40 mt-1">
@@ -116,11 +119,40 @@ export const SpentTab = memo(function SpentTab({ monthTotal, spendByDay, expande
               <div>7D TREND</div>
             </div>
           )}
-          {hasBudget && <div className="text-[10px] font-mono tracking-widest opacity-40 mt-1">DAILY AIM</div>}
+          {hasBudget && (
+            <div className="text-[10px] font-mono tracking-widest opacity-40 mt-1">DAILY AIM · {dailyAim}</div>
+          )}
+          {hasBudget && (
+            <div className="mt-4 space-y-1">
+              <div className="flex gap-[3px]">
+                {Array.from({ length: 20 }).map((_, i) => {
+                  const pct = Math.min(Math.max(monthTotal / monthlyBudget, 0), 1);
+                  const filled = i < Math.round(pct * 40);
+                  return (
+                    <div key={i} className={`h-[5px] w-[5px] rounded-full transition-colors ${filled ? 'bg-ink' : 'bg-ink/10'}`} />
+                  );
+                })}
+              </div>
+              <div className="flex gap-[3px]">
+                {Array.from({ length: 20 }).map((_, i) => {
+                  const pct = Math.min(Math.max(monthTotal / monthlyBudget, 0), 1);
+                  const filled = (i + 20) < Math.round(pct * 40);
+                  return (
+                    <div key={i} className={`h-[5px] w-[5px] rounded-full transition-colors ${filled ? 'bg-ink' : 'bg-ink/10'}`} />
+                  );
+                })}
+              </div>
+              <div className="text-[10px] font-mono tracking-widest opacity-40 flex justify-between">
+                <span>BUDGET</span>
+                <span>{Math.round(Math.min(Math.max((monthTotal / monthlyBudget) * 100, 0), 100))}%</span>
+              </div>
+            </div>
+          )}
         </div>
         <div className="text-4xl text-right font-display flex flex-col items-end">
           <div className="text-xs font-mono opacity-40 mb-1">{new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' }).toUpperCase()}</div>
           {monthTotal}
+          {hasBudget && <div className="text-xs font-mono opacity-40 mt-1">{monthlyBudget}</div>}
         </div>
       </div>
       <div className="space-y-4">
