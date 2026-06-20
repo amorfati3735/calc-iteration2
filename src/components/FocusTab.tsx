@@ -70,6 +70,33 @@ function LiveTimer({ runningSession }: { runningSession: RunningSession }) {
   );
 }
 
+function CountdownTimer({ runningSession, targetMs, onTimeUp }: { runningSession: RunningSession; targetMs: number; onTimeUp: () => void }) {
+  const [now, setNow] = useState(Date.now());
+  const firedRef = useRef(false);
+
+  useEffect(() => {
+    if (runningSession.pausedAt) return;
+    const id = setInterval(() => setNow(Date.now()), 200);
+    return () => clearInterval(id);
+  }, [runningSession.pausedAt]);
+
+  const elapsed = computeRunningElapsed(runningSession, now);
+  const remaining = Math.max(0, targetMs - elapsed);
+
+  useEffect(() => {
+    if (remaining <= 0 && !firedRef.current) {
+      firedRef.current = true;
+      onTimeUp();
+    }
+  }, [remaining, onTimeUp]);
+
+  return (
+    <div className="font-display font-black tracking-tighter text-[5.5rem] sm:text-[7rem] leading-none tabular-nums">
+      {formatDuration(remaining)}
+    </div>
+  );
+}
+
 // Today total pill — ticks once per minute when a session is running.
 export function TodayPill({
   studySessions,
@@ -145,6 +172,9 @@ export const FocusTab = memo(function FocusTab({
   const [draftNote, setDraftNote] = useState('');
   const [showArchive, setShowArchive] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [timerMode, setTimerMode] = useState(false);
+  const [timerTargetMin, setTimerTargetMin] = useState(25);
+  const [timerDraftMin, setTimerDraftMin] = useState('25');
 
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement);
@@ -282,11 +312,31 @@ export const FocusTab = memo(function FocusTab({
 
       {/* Timer */}
       <div className="brutal-box space-y-4 p-6">
+        {!runningSession && (
+          <div className="flex gap-2 pb-2">
+            <button
+              onClick={() => setTimerMode(false)}
+              className={`px-3 py-1 text-[10px] tracking-widest font-mono border active:scale-95 transition-all ${
+                !timerMode ? 'bg-ink text-bg border-ink' : 'bg-transparent text-ink border-ink/30'
+              }`}
+            >
+              STOPWATCH
+            </button>
+            <button
+              onClick={() => setTimerMode(true)}
+              className={`px-3 py-1 text-[10px] tracking-widest font-mono border active:scale-95 transition-all ${
+                timerMode ? 'bg-ink text-bg border-ink' : 'bg-transparent text-ink border-ink/30'
+              }`}
+            >
+              TIMER
+            </button>
+          </div>
+        )}
         {runningSession ? (
           <>
             <div className="flex items-baseline justify-between">
               <span className="text-[10px] font-mono font-bold tracking-widest opacity-60">
-                {isPaused ? 'PAUSED' : 'IN SESSION'}
+                {isPaused ? 'PAUSED' : timerMode ? 'TIMER' : 'IN SESSION'}
               </span>
               <span className="text-[10px] font-mono opacity-40 tracking-widest">
                 {new Date(runningSession.startedAt).toLocaleTimeString([], {
@@ -297,7 +347,15 @@ export const FocusTab = memo(function FocusTab({
             </div>
 
             <div className="flex justify-center py-2">
-              <LiveTimer runningSession={runningSession} />
+              {timerMode ? (
+                <CountdownTimer
+                  runningSession={runningSession}
+                  targetMs={timerTargetMin * 60 * 1000}
+                  onTimeUp={onStop}
+                />
+              ) : (
+                <LiveTimer runningSession={runningSession} />
+              )}
             </div>
 
             <div className="space-y-2">
@@ -391,18 +449,35 @@ export const FocusTab = memo(function FocusTab({
             </div>
             <div className="text-[9px] font-mono opacity-30 tracking-widest text-center pt-1">
               SPACE: {isPaused ? 'RESUME' : 'PAUSE'} · ENTER: STOP
+              {timerMode && ' · AUTO-STOPS AT 0:00'}
             </div>
           </>
         ) : (
           <>
             <div className="text-[10px] font-mono font-bold tracking-widest opacity-60">
-              READY
+              {timerMode ? 'TIMER' : 'READY'}
             </div>
-            <div className="flex justify-center py-4">
-              <div className="font-display font-black tracking-tighter text-[5.5rem] sm:text-[7rem] leading-none tabular-nums opacity-20">
-                00:00
+            {timerMode ? (
+              <div className="flex justify-center py-4">
+                <div className="inline-flex items-baseline border-b-4 border-ink pb-1 max-w-full">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={timerDraftMin}
+                    onChange={e => setTimerDraftMin(e.target.value)}
+                    className="w-24 sm:w-28 bg-transparent outline-none text-[clamp(3rem,14vw,4.5rem)] font-display font-black tracking-tighter leading-none text-center"
+                    placeholder="25"
+                  />
+                  <span className="text-2xl sm:text-3xl font-mono font-black opacity-10 shrink-0">min</span>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex justify-center py-4">
+                <div className="font-display font-black tracking-tighter text-[5.5rem] sm:text-[7rem] leading-none tabular-nums opacity-20">
+                  00:00
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <div className="flex items-baseline gap-2">
                 <span className="text-[10px] font-mono opacity-40 tracking-widest">
@@ -457,6 +532,11 @@ export const FocusTab = memo(function FocusTab({
             </div>
             <button
               onClick={() => {
+                if (timerMode) {
+                  const m = parseFloat(timerDraftMin);
+                  if (isNaN(m) || m <= 0) return;
+                  setTimerTargetMin(m);
+                }
                 onStart(draftSubject || lastSubject || 'untitled', draftName || undefined, draftNote || undefined);
                 setDraftSubject('');
                 setDraftName('');
@@ -464,10 +544,11 @@ export const FocusTab = memo(function FocusTab({
               }}
               className="w-full bg-ink text-bg py-4 font-display font-bold text-base tracking-widest active:scale-[0.97] transition-transform"
             >
-              START · {KAOMOJI.GO}
+              {timerMode ? `START ${timerDraftMin || '?'}m · ${KAOMOJI.GO}` : `START · ${KAOMOJI.GO}`}
             </button>
             <div className="text-[9px] font-mono opacity-30 tracking-widest text-center pt-1">
               SPACE: START
+              {timerMode && ` · ${timerDraftMin || '?'}m COUNTDOWN`}
             </div>
           </>
         )}
