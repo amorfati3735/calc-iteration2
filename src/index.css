@@ -22,6 +22,12 @@
   --grid: rgba(196, 181, 253, 0.05);
 }
 
+.monochrome {
+  --bg: #F5F0E8;
+  --ink: #000000;
+  --grid: rgba(0, 0, 0, 0.08);
+}
+
 html, body {
   min-height: 100vh;
 }

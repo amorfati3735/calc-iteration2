@@ -84,8 +84,10 @@ export default function App() {
   type UndoAction = { type: 'FINANCE' | 'STUDY'; state: AppState };
   const [undoStack, setUndoStack] = useState<UndoAction[]>([]);
   const [showUndoToast, setShowUndoToast] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    return (localStorage.getItem('calc_theme') as 'light' | 'dark') || 'light';
+  const THEME_CYCLE = ['light', 'dark', 'monochrome'] as const;
+  type Theme = (typeof THEME_CYCLE)[number];
+  const [theme, setTheme] = useState<Theme>(() => {
+    return (localStorage.getItem('calc_theme') as Theme) || 'light';
   });
   const [gridStyle, setGridStyle] = useState<'lines' | 'dots'>(() => {
     return (localStorage.getItem('calc_grid') as 'lines' | 'dots') || 'lines';
@@ -172,7 +174,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.classList.remove('dark', 'monochrome');
+    if (theme !== 'light') document.documentElement.classList.add(theme);
     localStorage.setItem('calc_theme', theme);
   }, [theme]);
 
@@ -418,7 +421,7 @@ export default function App() {
       
       if (e.code === 'KeyB') {
         e.preventDefault();
-        setTheme(prev => prev === 'light' ? 'dark' : 'light');
+        setTheme(prev => THEME_CYCLE[(THEME_CYCLE.indexOf(prev) + 1) % THEME_CYCLE.length]);
         return;
       }
 
@@ -515,7 +518,7 @@ export default function App() {
         className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-200 ${isQuickNoteOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
       >
         <div onClick={() => setIsQuickNoteOpen(false)} className="absolute inset-0 bg-ink/10 backdrop-blur-[2px]" />
-        <div className="relative w-[90%] max-w-sm bg-bg border border-ink p-6 shadow-[8px_8px_0px_rgba(43,0,212,0.1)] brutal-box transition-transform duration-200" style={{ transform: isQuickNoteOpen ? 'scale(1)' : 'scale(0.95)' }}>
+        <div className="relative w-[90%] max-w-sm bg-bg border border-ink p-6 brutal-box transition-transform duration-200" style={{ transform: isQuickNoteOpen ? 'scale(1)' : 'scale(0.95)', boxShadow: '8px 8px 0px color-mix(in srgb, var(--ink) 10%, transparent)' }}>
           <div className="text-[10px] opacity-50 font-mono tracking-widest mb-4">QUICK NOTE</div>
           <input
             autoFocus
@@ -564,7 +567,7 @@ export default function App() {
               [ CFG ]
             </button>
             <button
-              onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+              onClick={() => setTheme(prev => THEME_CYCLE[(THEME_CYCLE.indexOf(prev) + 1) % THEME_CYCLE.length])}
               className="backdrop-blur-md bg-ink/5 border border-ink/10 px-4 py-1.5 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform whitespace-nowrap flex-shrink-0 font-bold"
             >
               CALC
@@ -658,7 +661,7 @@ export default function App() {
       )}
 
       {/* Tabs */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-[460px] border border-ink/30 bg-bg/80 backdrop-blur-md rounded-xl flex z-40 overflow-hidden shadow-[0_8px_30px_rgba(43,0,212,0.1)]">
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-[460px] border border-ink/30 bg-bg/80 backdrop-blur-md rounded-xl flex z-40 overflow-hidden" style={{ boxShadow: '0 8px 30px color-mix(in srgb, var(--ink) 10%, transparent)' }}>
         <TabButton label="FINANCE" active={activeTab === 'FINANCE'} />
         <TabButton label="FOCUS" active={activeTab === 'FOCUS'} />
         <TabButton label="CHRONICLE" active={activeTab === 'CHRONICLE'} />

@@ -499,7 +499,7 @@ export const FocusTab = memo(function FocusTab({
                   }))
                 }
                 className="brutal-box flex justify-between items-baseline cursor-pointer group hand-ruled-border"
-                style={{ borderLeft: '2px solid #2c7a3d' }}
+                style={{ borderLeft: '2px solid var(--ink)' }}
               >
                 <span className="font-display text-sm">
                   {isToday ? 'TODAY' : formatBrutalDate(new Date(day).getTime())}
