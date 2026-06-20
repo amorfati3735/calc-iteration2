@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, memo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react';
 
 import { StudySession, RunningSession } from '../types';
 
@@ -190,6 +190,27 @@ export const FocusTab = memo(function FocusTab({
     }
   };
 
+  const requestNotifPermission = async () => {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+  };
+
+  const sendTimerNotif = () => {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      new Notification('FOCUS · TIME · UP', {
+        body: '(╯✧▽✧)╯',
+      });
+    }
+  };
+
+  const handleTimerUp = useCallback(() => {
+    sendTimerNotif();
+    onStop();
+  }, [onStop]);
+
   // Derived stats
   const todayMs = useMemo(() => {
     const start = new Date();
@@ -351,7 +372,7 @@ export const FocusTab = memo(function FocusTab({
                 <CountdownTimer
                   runningSession={runningSession}
                   targetMs={timerTargetMin * 60 * 1000}
-                  onTimeUp={onStop}
+                  onTimeUp={handleTimerUp}
                 />
               ) : (
                 <LiveTimer runningSession={runningSession} />
@@ -536,6 +557,7 @@ export const FocusTab = memo(function FocusTab({
                   const m = parseFloat(timerDraftMin);
                   if (isNaN(m) || m <= 0) return;
                   setTimerTargetMin(m);
+                  requestNotifPermission();
                 }
                 onStart(draftSubject || lastSubject || 'untitled', draftName || undefined, draftNote || undefined);
                 setDraftSubject('');
