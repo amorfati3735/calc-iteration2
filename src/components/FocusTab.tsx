@@ -144,6 +144,21 @@ export const FocusTab = memo(function FocusTab({
   const [draftName, setDraftName] = useState('');
   const [draftNote, setDraftNote] = useState('');
   const [showArchive, setShowArchive] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen();
+    }
+  };
 
   // Derived stats
   const todayMs = useMemo(() => {
@@ -243,7 +258,7 @@ export const FocusTab = memo(function FocusTab({
             </>
           )}
         </div>
-        <div className="text-right font-display flex flex-col items-end">
+        <div className="text-right font-display flex flex-col items-end gap-2">
           <div className="text-xs font-mono opacity-40 mb-1">
             {new Date()
               .toLocaleString('en-US', { weekday: 'long' })
@@ -255,6 +270,13 @@ export const FocusTab = memo(function FocusTab({
               <span className="font-bold">{streak}d</span>
             </div>
           )}
+          <button
+            onClick={toggleFullscreen}
+            className="backdrop-blur-md bg-ink/5 border border-ink/10 px-2 py-1 text-[10px] tracking-widest font-mono text-ink active:scale-95 transition-transform whitespace-nowrap"
+            title="Toggle fullscreen"
+          >
+            {isFullscreen ? '[ -FS ]' : '[ +FS ]'}
+          </button>
         </div>
       </div>
 
