@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ref, onValue, set, remove, update } from 'firebase/database';
 import { db } from '../lib/firebase';
-import { SpendEntry, DebtTransaction, Friend, SortType, AppState } from '../types';
+import { SpendEntry, DebtTransaction, Friend, NoteEntry, SortType, AppState } from '../types';
 
 const STORAGE_KEY = 'calc_v2';
 
@@ -28,6 +28,9 @@ export function useFinanceData(uid: string | null) {
   const [sortType, setSortType] = useState<SortType>(init.sortType || 'NAME');
   const [monthlyBudget, setMonthlyBudget] = useState<number>(init.preferences?.monthlyBudget || 0);
   const [customTags, setCustomTags] = useState<string[]>(init.preferences?.customTags || ['eat-out', 'snacks', 'misc']);
+  const [notes, setNotes] = useState<NoteEntry[]>([]);
+  const [noteTags, setNoteTags] = useState<string[]>(init.preferences?.noteTags || ['idea', 'todo', 'misc']);
+  const [hideNotes, setHideNotes] = useState(init.preferences?.hideNotes ?? false);
   const [needsImport, setNeedsImport] = useState(false);
 
   useEffect(() => {
@@ -49,16 +52,24 @@ export function useFinanceData(uid: string | null) {
         const fr = data.friends
           ? Object.values(data.friends) as Friend[]
           : [];
+        const nt = data.notes
+          ? Object.values(data.notes) as NoteEntry[]
+          : [];
         const sort = data.preferences?.sortType || 'NAME';
         const budget = data.preferences?.monthlyBudget || 0;
         const tags = data.preferences?.customTags || ['eat-out', 'snacks', 'misc'];
+        const nTags = data.preferences?.noteTags || ['idea', 'todo', 'misc'];
+        const hNotes = data.preferences?.hideNotes ?? false;
 
         setSpendEntries(spend);
         setDebtTransactions(debts);
         setFriends(fr);
+        setNotes(nt);
         setSortType(sort);
         setMonthlyBudget(budget);
         setCustomTags(tags);
+        setNoteTags(nTags);
+        setHideNotes(hNotes);
         setNeedsImport(false);
 
         // Save fresh network state to localStorage for offline-first boots
@@ -66,8 +77,9 @@ export function useFinanceData(uid: string | null) {
           spendEntries: spend,
           debtTransactions: debts,
           friends: fr,
+          notes: nt,
           sortType: sort,
-          preferences: { monthlyBudget: budget, customTags: tags }
+          preferences: { monthlyBudget: budget, customTags: tags, noteTags: nTags, hideNotes: hNotes }
         };
         
         const existingRaw = localStorage.getItem(STORAGE_KEY);
@@ -165,7 +177,25 @@ export function useFinanceData(uid: string | null) {
     await set(ref(db, `users/${uid}/preferences/sortType`), sort);
   }, [uid]);
 
-  const updatePreferences = useCallback(async (prefs: { monthlyBudget?: number; customTags?: string[] }) => {
+  const addNote = useCallback(async (n: Omit<NoteEntry, 'id'>) => {
+    if (!uid) return;
+    const id = crypto.randomUUID();
+    const newNote: NoteEntry = { ...n, id };
+    await set(ref(db, `users/${uid}/notes/${id}`), newNote);
+    return id;
+  }, [uid]);
+
+  const updateNote = useCallback(async (id: string, patch: Partial<NoteEntry>) => {
+    if (!uid) return;
+    await update(ref(db, `users/${uid}/notes/${id}`), patch);
+  }, [uid]);
+
+  const deleteNote = useCallback(async (id: string) => {
+    if (!uid) return;
+    await remove(ref(db, `users/${uid}/notes/${id}`));
+  }, [uid]);
+
+  const updatePreferences = useCallback(async (prefs: { monthlyBudget?: number; customTags?: string[]; noteTags?: string[]; hideNotes?: boolean }) => {
     if (!uid) return;
     await update(ref(db, `users/${uid}/preferences`), prefs);
   }, [uid]);
@@ -176,6 +206,9 @@ export function useFinanceData(uid: string | null) {
     debtTransactions,
     friends,
     sortType,
+    notes,
+    noteTags,
+    hideNotes,
     needsImport,
     importLocalData,
     addSpend,
@@ -185,6 +218,9 @@ export function useFinanceData(uid: string | null) {
     updateDebt,
     deleteDebt,
     settleDebt,
+    addNote,
+    updateNote,
+    deleteNote,
     updateSortType,
     monthlyBudget,
     customTags,

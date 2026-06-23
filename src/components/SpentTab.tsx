@@ -1,6 +1,6 @@
 import React, { useState, useMemo, memo } from 'react';
 
-import { SpendEntry } from '../types';
+import { SpendEntry, NoteEntry } from '../types';
 import { getSparkline } from '../lib/sparkline';
 
 const formatBrutalDate = (timestamp: number) => {
@@ -17,11 +17,15 @@ interface SpentTabProps {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   monthlyBudget: number;
+  notes: NoteEntry[];
+  hideNotes: boolean;
+  noteTags: string[];
+  onDeleteNote: (id: string) => void;
 }
 
 const KAOMOJI = { EMPTY: '(´• ω •`)ノ' };
 
-export const SpentTab = memo(function SpentTab({ monthTotal, spendByDay, expandedDays, setExpandedDays, onEdit, onDelete, monthlyBudget }: SpentTabProps) {
+export const SpentTab = memo(function SpentTab({ monthTotal, spendByDay, expandedDays, setExpandedDays, onEdit, onDelete, monthlyBudget, notes, hideNotes, noteTags, onDeleteNote }: SpentTabProps) {
   const [showArchive, setShowArchive] = useState(false);
 
   // Sparkline for last 7 days with data
@@ -201,6 +205,33 @@ export const SpentTab = memo(function SpentTab({ monthTotal, spendByDay, expande
           );
         })}
       </div>
+
+      {/* Notes Section */}
+      {!hideNotes && notes.length > 0 && (
+        <div className="pt-6 border-t border-ink/20 mt-8">
+          <div className="text-[10px] font-mono tracking-widest opacity-40 mb-4">NOTES</div>
+          <div className="space-y-2">
+            {notes.sort((a, b) => b.date - a.date).map(n => (
+              <div
+                key={n.id}
+                className="flex items-baseline gap-2 text-xs group pr-2"
+                onContextMenu={(ev) => { ev.preventDefault(); onDeleteNote(n.id); }}
+              >
+                <span className="italic opacity-70 flex-1">{n.text}</span>
+                {n.tag && <span className="opacity-40 text-[10px] font-mono">[{n.tag}]</span>}
+                {noteTags.length > 0 && (
+                  <button
+                    onClick={() => onDeleteNote(n.id)}
+                    className="opacity-0 group-hover:opacity-40 hover:opacity-100 transition-opacity font-mono text-[10px]"
+                  >
+                    x
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Archive Section */}
       {archiveReceipts.length > 0 && (
