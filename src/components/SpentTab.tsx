@@ -211,7 +211,7 @@ export const SpentTab = memo(function SpentTab({ monthTotal, spendByDay, expande
         <div className="pt-6 border-t border-ink/20 mt-8">
           <div className="text-[10px] font-mono tracking-widest opacity-40 mb-4">NOTES</div>
           <div className="space-y-2">
-            {[...notes].sort((a, b) => b.date - a.date).map(n => (
+            {notes.sort((a, b) => b.date - a.date).map(n => (
               <div
                 key={n.id}
                 className="flex items-baseline gap-2 text-xs group pr-2"

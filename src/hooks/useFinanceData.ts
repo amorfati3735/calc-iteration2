@@ -28,7 +28,7 @@ export function useFinanceData(uid: string | null) {
   const [sortType, setSortType] = useState<SortType>(init.sortType || 'NAME');
   const [monthlyBudget, setMonthlyBudget] = useState<number>(init.preferences?.monthlyBudget || 0);
   const [customTags, setCustomTags] = useState<string[]>(init.preferences?.customTags || ['eat-out', 'snacks', 'misc']);
-  const [notes, setNotes] = useState<NoteEntry[]>(init.notes || []);
+  const [notes, setNotes] = useState<NoteEntry[]>([]);
   const [noteTags, setNoteTags] = useState<string[]>(init.preferences?.noteTags || ['idea', 'todo', 'misc']);
   const [hideNotes, setHideNotes] = useState(init.preferences?.hideNotes ?? false);
   const [needsImport, setNeedsImport] = useState(false);
@@ -180,8 +180,7 @@ export function useFinanceData(uid: string | null) {
   const addNote = useCallback(async (n: Omit<NoteEntry, 'id'>) => {
     if (!uid) return;
     const id = crypto.randomUUID();
-    const newNote: Record<string, any> = { ...n, id };
-    Object.keys(newNote).forEach(k => newNote[k] === undefined && delete newNote[k]);
+    const newNote: NoteEntry = { ...n, id };
     await set(ref(db, `users/${uid}/notes/${id}`), newNote);
     return id;
   }, [uid]);
