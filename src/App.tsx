@@ -528,10 +528,15 @@ export default function App() {
         noteTags={noteTags}
         context={activeTab}
         onSave={async (text, tag) => {
-          await addNote({ text, tag, date: Date.now(), context: activeTab });
-          setIsQuickNoteOpen(false);
-          setQuickNoteText('');
-          triggerFleeting('✏️', 500);
+          try {
+            await addNote({ text, tag, date: Date.now(), context: activeTab });
+            setIsQuickNoteOpen(false);
+            setQuickNoteText('');
+            triggerFleeting('記', 500);
+          } catch (e) {
+            console.error('Failed to save note', e);
+            triggerFleeting('(¬_¬) ERR', 1000);
+          }
         }}
       />
 
@@ -1115,8 +1120,16 @@ function QuickNoteModal({ isOpen, onClose, text, onTextChange, noteTags, context
   onSave: (text: string, tag?: string) => void;
 }) {
   const [tag, setTag] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { if (!isOpen) setTag(''); }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const t = setTimeout(() => inputRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [isOpen]);
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
@@ -1124,7 +1137,8 @@ function QuickNoteModal({ isOpen, onClose, text, onTextChange, noteTags, context
       <div className="relative w-[90%] max-w-sm bg-bg border border-ink p-6 brutal-box transition-transform duration-200" style={{ transform: isOpen ? 'scale(1)' : 'scale(0.95)', boxShadow: '8px 8px 0px color-mix(in srgb, var(--ink) 10%, transparent)' }}>
         <div className="text-[10px] opacity-50 font-mono tracking-widest mb-4">{context === 'FINANCE' ? 'QUICK NOTE' : 'FOCUS NOTE'}</div>
         <input
-          autoFocus
+          ref={inputRef}
+          inputMode="text"
           value={text}
           onChange={e => onTextChange(e.target.value)}
           onKeyDown={e => {
@@ -1150,8 +1164,8 @@ function QuickNoteModal({ isOpen, onClose, text, onTextChange, noteTags, context
           </div>
         )}
         <div className="mt-4 flex gap-2">
-          <button onClick={onClose} className="flex-1 py-2 border border-ink text-[10px] font-mono opacity-60 hover:opacity-100 transition-opacity">CANCEL</button>
-          <button onClick={() => { if (text.trim()) onSave(text.trim(), tag || undefined); }} className="flex-1 py-2 bg-ink text-bg text-[10px] font-mono font-bold tracking-widest">SAVE</button>
+          <button type="button" onClick={onClose} className="flex-1 py-2 border border-ink text-[10px] font-mono opacity-60 hover:opacity-100 transition-opacity">CANCEL</button>
+          <button type="button" onClick={() => { if (text.trim()) onSave(text.trim(), tag || undefined); }} className="flex-1 py-2 bg-ink text-bg text-[10px] font-mono font-bold tracking-widest">SAVE</button>
         </div>
       </div>
     </div>
