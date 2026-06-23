@@ -39,7 +39,7 @@ interface FocusTabProps {
   dailyStudyGoalMin: number;
   customSubjects: string[];
   lastSubject: string;
-  onStart: (subject: string, name?: string, note?: string) => void;
+  onStart: (subject: string, name?: string, note?: string, timerTargetMs?: number) => void;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
@@ -559,7 +559,12 @@ export const FocusTab = memo(function FocusTab({
                   setTimerTargetMin(m);
                   requestNotifPermission();
                 }
-                onStart(draftSubject || lastSubject || 'untitled', draftName || undefined, draftNote || undefined);
+                onStart(
+                  draftSubject || lastSubject || 'untitled',
+                  draftName || undefined,
+                  draftNote || undefined,
+                  timerMode ? timerTargetMin * 60 * 1000 : undefined
+                );
                 setDraftSubject('');
                 setDraftName('');
                 setDraftNote('');

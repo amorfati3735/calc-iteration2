@@ -51,6 +51,7 @@ export interface RunningSession {
   pausedAt?: number;     // if defined, currently paused (timestamp)
   pausedMs: number;      // accumulated paused duration before current pause
   distractions: number;
+  timerTargetMs?: number; // if set, countdown mode (target duration in ms)
 }
 
 export interface AppState {

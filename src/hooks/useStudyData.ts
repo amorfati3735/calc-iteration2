@@ -69,7 +69,7 @@ export function useStudyData(uid: string | null) {
   }, [uid]);
 
   const startSession = useCallback(
-    async (subject: string, name?: string, note?: string) => {
+    async (subject: string, name?: string, note?: string, timerTargetMs?: number) => {
       if (!uid) return;
       const newRunning: RunningSession = {
         id: crypto.randomUUID(),
@@ -79,6 +79,7 @@ export function useStudyData(uid: string | null) {
         startedAt: Date.now(),
         pausedMs: 0,
         distractions: 0,
+        timerTargetMs: timerTargetMs || undefined,
       };
       const clean: any = { ...newRunning };
       Object.keys(clean).forEach(k => clean[k] === undefined && delete clean[k]);

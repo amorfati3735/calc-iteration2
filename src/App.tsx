@@ -357,8 +357,8 @@ export default function App() {
   };
 
   // ==== Study handlers ====
-  const handleStartSession = async (subject: string, name?: string, note?: string) => {
-    await startSession(subject, name, note);
+  const handleStartSession = async (subject: string, name?: string, note?: string, timerTargetMs?: number) => {
+    await startSession(subject, name, note, timerTargetMs);
     triggerFleeting('ᕙ(`▿´)ᕗ', 600);
   };
 
