@@ -10,7 +10,7 @@ const SpentTab = lazy(() => import('./components/SpentTab').then(m => ({ default
 const ChronicleTab = lazy(() => import('./components/ChronicleTab').then(m => ({ default: m.ChronicleTab })));
 const AnalyticsTab = lazy(() => import('./components/AnalyticsTab').then(m => ({ default: m.AnalyticsTab })));
 const SidebarConfig = lazy(() => import('./components/SidebarConfig').then(m => ({ default: m.SidebarConfig })));
-import { DebtTransaction, SpendEntry, NoteEntry, Friend, SortType, Direction, AppState, StudySession, RunningSession } from './types';
+import { DebtTransaction, SpendEntry, Friend, SortType, Direction, AppState, StudySession, RunningSession } from './types';
 
 const KAOMOJI = {
   LOAD: '(=^･ω･^=)',
@@ -33,9 +33,6 @@ export default function App() {
     debtTransactions,
     friends,
     sortType,
-    notes,
-    noteTags,
-    hideNotes,
     needsImport,
     importLocalData,
     addSpend,
@@ -45,9 +42,6 @@ export default function App() {
     updateDebt,
     deleteDebt,
     settleDebt,
-    addNote,
-    updateNote,
-    deleteNote,
     updateSortType,
     monthlyBudget,
     customTags,
@@ -520,20 +514,47 @@ export default function App() {
       )}
 
       {/* Quick Note Modal */}
-      <QuickNoteModal
-        isOpen={isQuickNoteOpen}
-        onClose={() => { setIsQuickNoteOpen(false); setQuickNoteText(''); }}
-        text={quickNoteText}
-        onTextChange={setQuickNoteText}
-        noteTags={noteTags}
-        context={activeTab}
-        onSave={async (text, tag) => {
-          await addNote({ text, tag, date: Date.now(), context: activeTab });
-          setIsQuickNoteOpen(false);
-          setQuickNoteText('');
-          triggerFleeting('✏️', 500);
-        }}
-      />
+      <div
+        className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-200 ${isQuickNoteOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      >
+        <div onClick={() => setIsQuickNoteOpen(false)} className="absolute inset-0 bg-ink/10 backdrop-blur-[2px]" />
+        <div className="relative w-[90%] max-w-sm bg-bg border border-ink p-6 brutal-box transition-transform duration-200" style={{ transform: isQuickNoteOpen ? 'scale(1)' : 'scale(0.95)', boxShadow: '8px 8px 0px color-mix(in srgb, var(--ink) 10%, transparent)' }}>
+          <div className="text-[10px] opacity-50 font-mono tracking-widest mb-4">QUICK NOTE</div>
+          <input
+            autoFocus
+            value={quickNoteText}
+            onChange={e => setQuickNoteText(e.target.value)}
+            onKeyDown={async e => {
+              if (e.key === 'Escape') {
+                setIsQuickNoteOpen(false);
+                setQuickNoteText('');
+              } else if (e.key === 'Enter' && quickNoteText.trim()) {
+                pushToStudyUndo();
+                const id = crypto.randomUUID();
+                const now = Date.now();
+                const newSession = {
+                  id,
+                  subject: 'NOTE',
+                  note: quickNoteText.trim(),
+                  startedAt: now,
+                  endedAt: now,
+                  durationMs: 0,
+                  pausedMs: 0,
+                  distractions: 0
+                };
+                const { ref, set } = await import('firebase/database');
+                const { db } = await import('./lib/firebase');
+                await set(ref(db, `users/${user!.uid}/studySessions/${id}`), newSession);
+                setIsQuickNoteOpen(false);
+                setQuickNoteText('');
+                triggerFleeting('✏️', 500);
+              }
+            }}
+            className="w-full bg-transparent border-b border-ink outline-none font-display text-lg pb-1"
+            placeholder="..."
+          />
+        </div>
+      </div>
 
       {/* Top pills — unified container to prevent overlap on narrow screens */}
       <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 w-full max-w-lg px-4">
@@ -577,10 +598,6 @@ export default function App() {
             onEdit={(id) => openModal(() => { setEditingSpendId(id); setIsSheetOpen(true); })}
             onDelete={(id) => handleDeleteEntry(id, 'SPEND')}
             monthlyBudget={monthlyBudget}
-            notes={notes.filter(n => n.context === 'FINANCE')}
-            hideNotes={hideNotes}
-            noteTags={noteTags}
-            onDeleteNote={deleteNote}
           />
         )}
 
@@ -624,22 +641,13 @@ export default function App() {
         )}
       </Suspense>
 
-      {/* FAB — new transaction */}
+      {/* FAB */}
       <button
         onClick={() => openModal(() => setIsSheetOpen(true))}
         aria-label="New entry"
         className="fixed bottom-24 right-8 w-14 h-14 bg-ink text-bg flex items-center justify-center text-3xl z-40 hover:scale-105 active:scale-95 transition-all shadow-[4px_4px_0_var(--ink)] hover:shadow-[6px_6px_0_var(--ink)]"
       >
         +
-      </button>
-
-      {/* FAB — quick note (nier) */}
-      <button
-        onClick={() => openModal(() => setIsQuickNoteOpen(true))}
-        aria-label="Quick note"
-        className="fixed bottom-[10rem] right-8 w-9 h-9 bg-bg text-ink border-2 border-ink flex items-center justify-center text-sm font-mono font-bold z-40 hover:scale-105 active:scale-95 transition-all"
-      >
-        n
       </button>
 
       {/* Visual Back Button */}
@@ -740,8 +748,6 @@ export default function App() {
             customSubjects={customSubjects}
             updateStudyPreferences={updateStudyPreferences}
             onExport={handleExportData}
-            noteTags={noteTags}
-            hideNotes={hideNotes}
           />
         )}
       </Suspense>
@@ -1101,59 +1107,6 @@ function StudySessionForm({
       >
         {initialData ? 'SAVE CHANGES' : 'LOG SESSION'}
       </button>
-    </div>
-  );
-}
-
-function QuickNoteModal({ isOpen, onClose, text, onTextChange, noteTags, context, onSave }: {
-  isOpen: boolean;
-  onClose: () => void;
-  text: string;
-  onTextChange: (v: string) => void;
-  noteTags: string[];
-  context: 'FINANCE' | 'FOCUS';
-  onSave: (text: string, tag?: string) => void;
-}) {
-  const [tag, setTag] = useState('');
-
-  useEffect(() => { if (!isOpen) setTag(''); }, [isOpen]);
-
-  return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-      <div onClick={onClose} className="absolute inset-0 bg-ink/10 backdrop-blur-[2px]" />
-      <div className="relative w-[90%] max-w-sm bg-bg border border-ink p-6 brutal-box transition-transform duration-200" style={{ transform: isOpen ? 'scale(1)' : 'scale(0.95)', boxShadow: '8px 8px 0px color-mix(in srgb, var(--ink) 10%, transparent)' }}>
-        <div className="text-[10px] opacity-50 font-mono tracking-widest mb-4">{context === 'FINANCE' ? 'QUICK NOTE' : 'FOCUS NOTE'}</div>
-        <input
-          autoFocus
-          value={text}
-          onChange={e => onTextChange(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Escape') onClose();
-            else if (e.key === 'Enter' && text.trim()) {
-              onSave(text.trim(), tag || undefined);
-            }
-          }}
-          className="w-full bg-transparent border-b border-ink outline-none font-display text-lg pb-1 italic"
-          placeholder="..."
-        />
-        {noteTags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {noteTags.map(t => (
-              <button
-                key={t}
-                onClick={() => setTag(tag === t ? '' : t)}
-                className={`px-2 py-1 border border-ink text-[10px] font-mono transition-colors ${tag === t ? 'bg-ink text-bg' : 'bg-transparent text-ink opacity-60 hover:opacity-100'}`}
-              >
-                [{t}]
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="mt-4 flex gap-2">
-          <button onClick={onClose} className="flex-1 py-2 border border-ink text-[10px] font-mono opacity-60 hover:opacity-100 transition-opacity">CANCEL</button>
-          <button onClick={() => { if (text.trim()) onSave(text.trim(), tag || undefined); }} className="flex-1 py-2 bg-ink text-bg text-[10px] font-mono font-bold tracking-widest">SAVE</button>
-        </div>
-      </div>
     </div>
   );
 }

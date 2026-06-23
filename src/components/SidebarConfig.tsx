@@ -6,15 +6,13 @@ interface SidebarConfigProps {
   onClose: () => void;
   monthlyBudget: number;
   customTags: string[];
-  updatePreferences: (prefs: { monthlyBudget?: number; customTags?: string[]; noteTags?: string[]; hideNotes?: boolean }) => void;
+  updatePreferences: (prefs: { monthlyBudget?: number; customTags?: string[] }) => void;
   gridStyle: 'lines' | 'dots';
   setGridStyle: (v: 'lines' | 'dots') => void;
   dailyStudyGoalMin: number;
   customSubjects: string[];
   updateStudyPreferences: (prefs: { dailyStudyGoalMin?: number; customSubjects?: string[] }) => void;
   onExport: () => void;
-  noteTags: string[];
-  hideNotes: boolean;
 }
 
 export function SidebarConfig({
@@ -29,12 +27,9 @@ export function SidebarConfig({
   customSubjects,
   updateStudyPreferences,
   onExport,
-  noteTags,
-  hideNotes,
 }: SidebarConfigProps) {
   const [budgetInput, setBudgetInput] = useState(monthlyBudget.toString());
   const [newTag, setNewTag] = useState('');
-  const [newNoteTag, setNewNoteTag] = useState('');
   const [goalInput, setGoalInput] = useState(dailyStudyGoalMin.toString());
   const [newSubject, setNewSubject] = useState('');
 
@@ -127,54 +122,6 @@ export function SidebarConfig({
                     <button onClick={() => handleRemoveTag(t)} className="opacity-40 hover:opacity-100 text-[10px]">x</button>
                   </div>
                 ))}
-              </div>
-            </div>
-
-            <div className="border-t border-ink/30 pt-6 space-y-4">
-              <div className="font-mono text-[10px] tracking-widest opacity-60">NOTE TAGS</div>
-              <div className="flex items-center gap-2">
-                <input
-                  value={newNoteTag}
-                  onChange={e => setNewNoteTag(e.target.value)}
-                  className="flex-1 bg-transparent border-b border-ink py-1 font-mono outline-none text-sm"
-                  placeholder="new note tag"
-                />
-                <button
-                  onClick={() => {
-                    if (newNoteTag.trim() && !noteTags.includes(newNoteTag.trim())) {
-                      updatePreferences({ noteTags: [...noteTags, newNoteTag.trim()] });
-                      setNewNoteTag('');
-                    }
-                  }}
-                  className="px-2 py-1 border border-ink text-ink font-mono text-[10px] tracking-widest"
-                >
-                  +
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2 pt-2">
-                {noteTags.map(t => (
-                  <div key={t} className="flex items-center border border-ink px-2 py-1 gap-2 text-xs font-mono">
-                    <span>{t}</span>
-                    <button
-                      onClick={() => updatePreferences({ noteTags: noteTags.filter(x => x !== t) })}
-                      className="opacity-40 hover:opacity-100 text-[10px]"
-                    >
-                      x
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="font-mono text-[10px] tracking-widest opacity-60 flex items-center justify-between">
-                <span>HIDE NOTES</span>
-                <button
-                  onClick={() => updatePreferences({ hideNotes: !hideNotes })}
-                  className={`w-10 h-5 border border-ink relative transition-colors ${hideNotes ? 'bg-ink' : 'bg-transparent'}`}
-                >
-                  <div className={`absolute top-0.5 w-3.5 h-3.5 bg-bg border border-ink transition-all duration-150 ${hideNotes ? 'left-[1.35rem]' : 'left-0.5'}`} />
-                </button>
               </div>
             </div>
 

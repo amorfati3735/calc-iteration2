@@ -18,14 +18,6 @@ export interface Friend {
   lastActive: number;
 }
 
-export interface NoteEntry {
-  id: string;
-  text: string;
-  tag?: string;
-  date: number;
-  context: 'FINANCE' | 'FOCUS';
-}
-
 export interface SpendEntry {
   id: string;
   amount: number;
@@ -69,13 +61,10 @@ export interface AppState {
   sortType: SortType;
   studySessions?: StudySession[];
   runningSession?: RunningSession | null;
-  notes?: NoteEntry[];
   preferences?: {
     monthlyBudget?: number;
     customTags?: string[];
     dailyStudyGoalMin?: number;
     customSubjects?: string[];
-    noteTags?: string[];
-    hideNotes?: boolean;
   };
 }
