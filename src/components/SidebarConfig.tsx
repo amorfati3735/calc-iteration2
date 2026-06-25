@@ -28,17 +28,17 @@ export function SidebarConfig({
   updateStudyPreferences,
   onExport,
 }: SidebarConfigProps) {
-  const [budgetInput, setBudgetInput] = useState(monthlyBudget.toString());
+  const [budgetInput, setBudgetInput] = useState((monthlyBudget ?? 0).toString());
   const [newTag, setNewTag] = useState('');
-  const [goalInput, setGoalInput] = useState(dailyStudyGoalMin.toString());
+  const [goalInput, setGoalInput] = useState((dailyStudyGoalMin ?? 0).toString());
   const [newSubject, setNewSubject] = useState('');
 
   useEffect(() => {
-    setBudgetInput(monthlyBudget.toString());
+    setBudgetInput((monthlyBudget ?? 0).toString());
   }, [monthlyBudget]);
 
   useEffect(() => {
-    setGoalInput(dailyStudyGoalMin.toString());
+    setGoalInput((dailyStudyGoalMin ?? 0).toString());
   }, [dailyStudyGoalMin]);
 
   const handleSaveBudget = () => {
@@ -47,14 +47,14 @@ export function SidebarConfig({
   };
 
   const handleAddTag = () => {
-    if (newTag.trim() && !customTags.includes(newTag.trim())) {
-      updatePreferences({ customTags: [...customTags, newTag.trim()] });
+    if (newTag.trim() && !(customTags || []).includes(newTag.trim())) {
+      updatePreferences({ customTags: [...(customTags || []), newTag.trim()] });
       setNewTag('');
     }
   };
 
   const handleRemoveTag = (tag: string) => {
-    updatePreferences({ customTags: customTags.filter(t => t !== tag) });
+    updatePreferences({ customTags: (customTags || []).filter(t => t !== tag) });
   };
 
   const handleSaveGoal = () => {
@@ -63,14 +63,14 @@ export function SidebarConfig({
   };
 
   const handleAddSubject = () => {
-    if (newSubject.trim() && !customSubjects.includes(newSubject.trim())) {
-      updateStudyPreferences({ customSubjects: [...customSubjects, newSubject.trim()] });
+    if (newSubject.trim() && !(customSubjects || []).includes(newSubject.trim())) {
+      updateStudyPreferences({ customSubjects: [...(customSubjects || []), newSubject.trim()] });
       setNewSubject('');
     }
   };
 
   const handleRemoveSubject = (s: string) => {
-    updateStudyPreferences({ customSubjects: customSubjects.filter(x => x !== s) });
+    updateStudyPreferences({ customSubjects: (customSubjects || []).filter(x => x !== s) });
   };
 
   return (
@@ -116,7 +116,7 @@ export function SidebarConfig({
                 </button>
               </div>
               <div className="flex flex-wrap gap-2 pt-2">
-                {customTags.map(t => (
+                {(customTags || []).map(t => (
                   <div key={t} className="flex items-center border border-ink px-2 py-1 gap-2 text-xs font-mono">
                     <span>{t}</span>
                     <button onClick={() => handleRemoveTag(t)} className="opacity-40 hover:opacity-100 text-[10px]">x</button>
@@ -154,7 +154,7 @@ export function SidebarConfig({
                 </button>
               </div>
               <div className="flex flex-wrap gap-2 pt-2">
-                {customSubjects.map(s => (
+                {(customSubjects || []).map(s => (
                   <div key={s} className="flex items-center border border-ink px-2 py-1 gap-2 text-xs font-mono">
                     <span>{s}</span>
                     <button onClick={() => handleRemoveSubject(s)} className="opacity-40 hover:opacity-100 text-[10px]">x</button>
